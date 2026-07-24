@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- <link rel="stylesheet" href="styles.css" /> -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>metabokit</title>
+    <style type="text/css">
+      :root {
+        //font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+        font-family: sans-serif;
+        background: lightgray;
+      }
+      #stick_top {
+        top: 0;
+        left: 0;
+        background-color: lightgray;
+        position: sticky;
+      }
+    </style>
+    <script src="d3.v7.js"></script>
+    <script type="module" src="/index.js" defer></script>
+  </head>
+
+  <body>
+    <!--
+    <input type="button" value="Reload all" id="reload" />
+    <br />
+      -->
+    <div id="stick_top">
+      <select style="font-size: 1em" id="mzml_sel"></select>
+      <!-- <option>Select mzML</option> -->
+      <input
+        style="font-size: 1em"
+        type="button"
+        value="Refresh"
+        id="refreshb"
+      />
+      <hr />
+    </div>
+    <div id="container"></div>
+  </body>
+</html>
