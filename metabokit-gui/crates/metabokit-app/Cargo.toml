@@ -1,0 +1,30 @@
+[package]
+name = "metabokit-app"
+description = "MetaboKit DDA desktop application"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+# The `_lib` suffix keeps the library name distinct from the binary, which
+# Windows otherwise treats as a conflict.
+name = "metabokit_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "metabokit-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+metabokit-core = { path = "../metabokit-core" }
+csv.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"

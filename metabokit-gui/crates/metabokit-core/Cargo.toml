@@ -1,0 +1,25 @@
+[package]
+name = "metabokit-core"
+description = "DDA metabolomics processing engine: mzML parsing, CWT feature detection, spectral library scoring, cross-sample alignment."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[lib]
+name = "metabokit_core"
+path = "src/lib.rs"
+
+[dependencies]
+base64.workspace = true
+bytemuck.workspace = true
+csv.workspace = true
+flate2.workspace = true
+glob.workspace = true
+memmap2.workspace = true
+quick-xml.workspace = true
+rayon.workspace = true
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true

@@ -1,3 +1,12 @@
 /target
 /Cargo.lock
 .DS_Store
+
+# metabokit-gui is its own cargo workspace
+/metabokit-gui/target
+/metabokit-gui/crates/metabokit-app/gen
+
+# scratch output from the smoke example
+/data_dir1/results*
+
+/data_dir1

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MetaboKit DDA</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <!-- ============================ rail ============================ -->
+      <nav class="rail">
+        <header class="masthead">
+          <h1 class="wordmark">MetaboKit</h1>
+          <p class="mono micro muted" id="masthead-tag">DDA</p>
+        </header>
+
+        <ul class="nav" role="tablist">
+          <li>
+            <button class="nav-item is-active" data-view="dataset" role="tab">
+              <span class="mono ord">01</span><span class="nav-label">Dataset</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="run" role="tab">
+              <span class="mono ord">02</span><span class="nav-label">Run</span>
+            </button>
+          </li>
+          <li>
+            <button class="nav-item" data-view="visualizer" role="tab">
+              <span class="mono ord">03</span><span class="nav-label">Visualizer</span>
+            </button>
+          </li>
+        </ul>
+
+        <div class="rail-foot">
+          <p class="mono micro muted" id="rail-stage">No dataset</p>
+          <div class="meter" aria-hidden="true"><span id="rail-meter"></span></div>
+          <button class="btn btn-primary" id="btn-run" disabled>Run analysis</button>
+          <button class="btn btn-quiet is-hidden" id="btn-cancel">Stop</button>
+          <div class="rail-links">
+            <button class="linky mono micro" data-view="advanced">Advanced</button>
+            <button class="linky mono micro" data-view="about">About</button>
+          </div>
+        </div>
+      </nav>
+
+      <!-- ============================ stage =========================== -->
+      <main class="stage">
+        <!-- ---------------------- 01 dataset ---------------------- -->
+        <section class="view is-active" id="view-dataset">
+          <header class="sec-head">
+            <p class="mono kicker">01 / Dataset</p>
+            <div class="sec-body">
+              <h2>Choose a folder</h2>
+              <p class="lede">
+                Point at the folder holding your mzML files. Everything else —
+                sample order, polarity, libraries, output location — is read
+                from what is actually there.
+              </p>
+            </div>
+          </header>
+
+          <!-- empty state -->
+          <div class="pickzone" id="pickzone">
+            <button class="btn btn-primary" id="btn-choose">Choose dataset folder…</button>
+            <p class="mono micro muted">
+              .mzML and .mzXML, up to three folders deep
+            </p>
+          </div>
+
+          <!-- populated state -->
+          <div id="dataset-detail" class="is-hidden">
+            <div class="rows">
+              <div class="row">
+                <span class="mono row-label">Folder</span>
+                <div class="row-ctl">
+                  <p class="mono path" id="ds-root">—</p>
+                  <div class="btn-set">
+                    <button class="btn btn-quiet" id="btn-rechoose">Change…</button>
+                    <button class="btn btn-quiet" id="btn-rescan">Re-scan</button>
+                  </div>
+                </div>
+                <p class="mono row-hint" id="ds-total">—</p>
+              </div>
+            </div>
+
+            <header class="sec-head sec-head-sub">
+              <p class="mono kicker">Detected</p>
+              <div class="sec-body"><h3>What the scan found</h3></div>
+            </header>
+            <ul class="findings" id="findings"></ul>
+
+            <!-- shown only when something blocks the run -->
+            <div class="fixups is-hidden" id="fixups">
+              <p class="mono micro muted">Resolve</p>
+              <div class="btn-set">
+                <button class="btn" id="btn-add-msp">Add .msp library…</button>
+                <button class="btn" id="btn-add-csv">Add .csv library…</button>
+                <button class="btn btn-quiet" id="btn-libs-dir">Locate libs/ folder…</button>
+              </div>
+            </div>
+
+            <header class="sec-head sec-head-sub">
+              <p class="mono kicker">Samples</p>
+              <div class="sec-body"><h3 id="samples-title">Samples</h3></div>
+            </header>
+            <ul class="filelist" id="samples"></ul>
+
+            <header class="sec-head sec-head-sub">
+              <p class="mono kicker">Libraries</p>
+              <div class="sec-body"><h3>Spectral references</h3></div>
+            </header>
+            <ul class="filelist" id="libraries"></ul>
+            <p class="empty mono micro" id="libraries-empty">None found.</p>
+
+            <div class="rows">
+              <div class="row">
+                <span class="mono row-label">Output</span>
+                <div class="row-ctl">
+                  <p class="mono path" id="ds-output">—</p>
+                </div>
+                <p class="mono row-hint">
+                  Kept out of the dataset folder so a re-scan cannot read its
+                  own results back in.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ------------------------- 02 run ----------------------- -->
+        <section class="view" id="view-run">
+          <header class="sec-head">
+            <p class="mono kicker">02 / Run</p>
+            <div class="sec-body">
+              <h2 id="run-title">Execution</h2>
+              <p class="lede" id="run-lede">Nothing has run yet in this session.</p>
+            </div>
+          </header>
+
+          <ol class="stages" id="stages"></ol>
+
+          <div class="issues is-hidden" id="issues"></div>
+
+          <div class="result is-hidden" id="result">
+            <dl class="stats" id="stats"></dl>
+            <div class="btn-set">
+              <button class="btn" id="btn-open-output">Open output folder</button>
+            </div>
+          </div>
+
+          <section class="console">
+            <header class="console-head">
+              <p class="mono micro muted">Log</p>
+              <button class="linky mono micro" id="btn-clear-log">Clear</button>
+            </header>
+            <ol class="log" id="log"></ol>
+          </section>
+        </section>
+
+        <!-- --------------------- 03 visualizer -------------------- -->
+        <section class="view" id="view-visualizer">
+          <header class="sec-head">
+            <p class="mono kicker">03 / Visualizer</p>
+            <div class="sec-body">
+              <h2>Explore the run</h2>
+              <p class="lede">Move from the complete RT–m/z feature field into chromatograms, acquired spectra, and ranked library matches.</p>
+            </div>
+          </header>
+
+          <div class="viz-toolbar">
+            <label class="viz-field">
+              <span class="mono micro muted">Sample</span>
+              <select id="viz-sample" disabled><option>No cached samples</option></select>
+            </label>
+            <div class="btn-set">
+              <button class="btn" id="viz-reload" disabled>Reload data</button>
+              <button class="btn btn-quiet" id="viz-reset" disabled>Reset map</button>
+            </div>
+            <p class="mono micro muted viz-toolbar-status" id="viz-status">Choose a dataset with completed results.</p>
+          </div>
+
+          <div class="viz-empty" id="viz-empty">
+            <p id="viz-empty-title">No visualizer data loaded</p>
+            <span id="viz-empty-detail">Keep scan caches when running an analysis to explore it here.</span>
+          </div>
+
+          <div class="viz-workspace is-hidden" id="viz-workspace">
+            <div class="viz-facts" id="viz-facts"></div>
+
+            <section class="viz-panel viz-map-panel">
+              <header class="viz-panel-head">
+                <div>
+                  <p class="mono micro muted">Feature field</p>
+                  <h3>Retention time × precursor m/z</h3>
+                </div>
+                <div class="viz-legend mono micro">
+                  <span><i class="viz-key identified"></i>identified</span>
+                  <span><i class="viz-key unknown"></i>unidentified</span>
+                </div>
+              </header>
+              <div class="viz-canvas-wrap viz-map-wrap">
+                <canvas id="viz-map" aria-label="Feature map"></canvas>
+                <div class="viz-tooltip is-hidden" id="viz-map-tip"></div>
+              </div>
+              <p class="mono micro muted viz-help">Scroll to zoom · drag to pan · click a feature · double-click to reset</p>
+            </section>
+
+            <section class="viz-selection is-hidden" id="viz-selection">
+              <header class="viz-selected-head">
+                <div>
+                  <p class="mono micro muted">Selected feature</p>
+                  <h3 id="viz-feature-title">—</h3>
+                </div>
+                <p class="mono viz-feature-coords" id="viz-feature-coords">—</p>
+              </header>
+
+              <div class="viz-detail-grid">
+                <section class="viz-panel">
+                  <header class="viz-panel-head compact">
+                    <div><p class="mono micro muted">MS1</p><h3>Extracted ion chromatogram</h3></div>
+                    <p class="mono micro muted" id="viz-xic-meta"></p>
+                  </header>
+                  <div class="viz-canvas-wrap viz-detail-wrap">
+                    <canvas id="viz-xic" aria-label="Extracted ion chromatogram"></canvas>
+                    <div class="viz-tooltip is-hidden" id="viz-xic-tip"></div>
+                  </div>
+                  <p class="mono micro muted viz-help">Hover an acquisition marker to inspect its MS/MS spectrum</p>
+                </section>
+
+                <section class="viz-panel">
+                  <header class="viz-panel-head compact">
+                    <div><p class="mono micro muted">MS2</p><h3 id="viz-spectrum-title">Acquired spectrum</h3></div>
+                    <p class="mono micro muted" id="viz-spectrum-meta"></p>
+                  </header>
+                  <div class="viz-canvas-wrap viz-detail-wrap">
+                    <canvas id="viz-spectrum" aria-label="Acquired MS/MS spectrum"></canvas>
+                    <div class="viz-tooltip is-hidden" id="viz-spectrum-tip"></div>
+                  </div>
+                  <p class="mono micro muted viz-help">Scroll to zoom the m/z axis · double-click to reset</p>
+                </section>
+              </div>
+
+              <section class="viz-mirrors">
+                <header class="viz-panel-head">
+                  <div><p class="mono micro muted">Library evidence</p><h3>Ranked mirror spectra</h3></div>
+                  <p class="mono micro muted" id="viz-mirror-count"></p>
+                </header>
+                <div id="viz-mirror-list"></div>
+              </section>
+            </section>
+          </div>
+        </section>
+
+        <!-- ------------------------ advanced ---------------------- -->
+        <section class="view" id="view-advanced">
+          <header class="sec-head">
+            <p class="mono kicker">Advanced</p>
+            <div class="sec-body">
+              <h2>Overrides</h2>
+              <p class="lede">
+                Every value here is inferred from the dataset or left at a
+                sensible default. Change them only when a run needs it —
+                scanning a folder again resets them.
+              </p>
+            </div>
+          </header>
+
+          <header class="sec-head sec-head-sub">
+            <p class="mono kicker">Detection</p>
+            <div class="sec-body"><h3>Chromatographic features</h3></div>
+          </header>
+          <div class="rows">
+            <div class="row">
+              <span class="mono row-label">Peak width</span>
+              <div class="row-ctl">
+                <div class="pair">
+                  <input type="number" id="peakWidthMin" step="0.01" min="0" />
+                  <span class="mono muted">to</span>
+                  <input type="number" id="peakWidthMax" step="0.01" min="0" />
+                </div>
+              </div>
+              <p class="mono row-hint">Full width, minutes.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="peakShape">Shape threshold</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="peakShape" data-param="peakShape" step="0.01" min="0" max="1" />
+              </div>
+              <p class="mono row-hint">Trace against the fitted wavelet.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="snScore">Smoothness</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="snScore" data-param="snScore" step="0.01" min="0" max="1" />
+              </div>
+              <p class="mono row-hint">Lag-1 autocorrelation floor.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="sN1">Signal to noise</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="sN1" data-param="sN1" step="0.1" min="0" />
+              </div>
+              <p class="mono row-hint">Apex over baseline, minimum.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="ms1Tol">MS1 tolerance</label>
+              <div class="row-ctl">
+                <div class="pair">
+                  <input type="number" id="ms1Tol" data-param="ms1Tol" step="0.1" min="0" />
+                  <div class="seg small" data-param="ms1TolUnit">
+                    <button data-value="ppm" class="is-on">ppm</button>
+                    <button data-value="mz">m/z</button>
+                  </div>
+                </div>
+              </div>
+              <p class="mono row-hint">Precursor window for library lookup.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="ms1Ms2Pair">MS1 ↔ MS2 window</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="ms1Ms2Pair" data-param="ms1Ms2Pair" step="0.01" min="0" />
+              </div>
+              <p class="mono row-hint">Half-width, m/z.</p>
+            </div>
+          </div>
+
+          <header class="sec-head sec-head-sub">
+            <p class="mono kicker">Matching</p>
+            <div class="sec-body"><h3>Fragment scoring</h3></div>
+          </header>
+          <div class="rows">
+            <div class="row">
+              <label class="mono row-label" for="ms2Tol">MS2 tolerance</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="ms2Tol" data-param="ms2Tol" step="0.001" min="0" />
+              </div>
+              <p class="mono row-hint">m/z, absolute.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="ms2Score">Minimum score</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="ms2Score" data-param="ms2Score" step="0.01" min="0" max="1" />
+              </div>
+              <p class="mono row-hint">Weighted cosine similarity, 0 – 1.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="minPeaks">Matching peaks</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="minPeaks" data-param="minPeaks" step="1" min="0" max="255" />
+              </div>
+              <p class="mono row-hint">Minimum shared fragments per hit.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="matchNFragments">Fragments used</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="matchNFragments" data-param="matchNFragments" step="1" min="1" />
+              </div>
+              <p class="mono row-hint">Top-N by intensity, per spectrum.</p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">Intensity cutoff</span>
+              <div class="row-ctl">
+                <label class="check">
+                  <input type="checkbox" id="intensityCutoffOn" />
+                  <span>Use an absolute floor instead of top-N</span>
+                </label>
+                <input type="number" id="intensityCutoff" data-param="intensityCutoff" step="1" min="0" class="indent" disabled />
+              </div>
+              <p class="mono row-hint">Experimental fragments only.</p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">Behaviour</span>
+              <div class="row-ctl">
+                <label class="check">
+                  <input type="checkbox" id="chimericSpectra" data-param="chimericSpectra" />
+                  <span>Allow chimeric spectra</span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="topScoringOnly" data-param="topScoringOnly" />
+                  <span>Keep only the top-scoring compound per spectrum</span>
+                </label>
+              </div>
+              <p class="mono row-hint">
+                Chimeric mode stops penalising unexplained fragments.
+              </p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="excludeAdducts">Excluded adducts</label>
+              <div class="row-ctl">
+                <input type="text" id="excludeAdducts" placeholder="M+Na, 2M+H" />
+              </div>
+              <p class="mono row-hint">Comma separated, matched exactly.</p>
+            </div>
+          </div>
+
+          <header class="sec-head sec-head-sub">
+            <p class="mono kicker">Alignment</p>
+            <div class="sec-body"><h3>Grouping and quantification</h3></div>
+          </header>
+          <div class="rows">
+            <div class="row">
+              <label class="mono row-label" for="mzShift">m/z window</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="mzShift" data-param="mzShift" step="0.001" min="0" />
+              </div>
+              <p class="mono row-hint">Grouping tolerance across samples.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="rtShift">RT window</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="rtShift" data-param="rtShift" step="0.01" min="0" />
+              </div>
+              <p class="mono row-hint">Minutes.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="integrationRt">Integration width</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="integrationRt" data-param="integrationRt" step="0.1" min="0" />
+              </div>
+              <p class="mono row-hint">Multiples of the fitted half-width.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="integrationMz">Integration m/z</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="integrationMz" data-param="integrationMz" step="0.001" min="0" />
+              </div>
+              <p class="mono row-hint">Half-width of the extraction window.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="imputeWidth">Impute width</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="imputeWidth" data-param="imputeWidth" step="0.01" min="0" />
+              </div>
+              <p class="mono row-hint">Minutes either side of the median RT.</p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">In-source fragments</span>
+              <div class="row-ctl">
+                <div class="pair">
+                  <input type="number" id="isfParentMassDiff" data-param="isfParentMassDiff" step="0.1" min="0" />
+                  <span class="mono muted">Da apart</span>
+                </div>
+                <div class="pair">
+                  <input type="number" id="isfRtDiff" data-param="isfRtDiff" step="0.005" min="0" />
+                  <span class="mono muted">min co-elution</span>
+                </div>
+              </div>
+              <p class="mono row-hint">Mass gap to a parent, and co-elution.</p>
+            </div>
+          </div>
+
+          <header class="sec-head sec-head-sub">
+            <p class="mono kicker">Execution</p>
+            <div class="sec-body"><h3>Resources and output</h3></div>
+          </header>
+          <div class="rows">
+            <div class="row">
+              <span class="mono row-label">Polarity</span>
+              <div class="row-ctl">
+                <div class="seg" data-param="polarity">
+                  <button data-value="auto" class="is-on">Auto</button>
+                  <button data-value="positive">Positive</button>
+                  <button data-value="negative">Negative</button>
+                </div>
+              </div>
+              <p class="mono row-hint">Overrides what the scan detected.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="outputDir">Output directory</label>
+              <div class="row-ctl">
+                <div class="path-line">
+                  <input type="text" id="outputDir" data-param="outputDir" />
+                  <button class="btn btn-quiet" id="btn-output-dir">Browse…</button>
+                </div>
+              </div>
+              <p class="mono row-hint">Reports and a <code>misc/</code> cache.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="libsDir">Libs directory</label>
+              <div class="row-ctl">
+                <div class="path-line">
+                  <input type="text" id="libsDir" data-param="libsDir" placeholder="Auto-detected" />
+                  <button class="btn btn-quiet" id="btn-libs-dir-2">Browse…</button>
+                </div>
+              </div>
+              <p class="mono row-hint">
+                Also holds <code>inchik.txt</code> and <code>name_formu.txt</code>.
+              </p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="threads">Worker threads</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="threads" data-param="threads" min="0" step="1" />
+              </div>
+              <p class="mono row-hint" id="threads-hint">0 uses every core.</p>
+            </div>
+            <div class="row">
+              <label class="mono row-label" for="maxFilesInFlight">Files in flight</label>
+              <div class="row-ctl narrow">
+                <input type="number" id="maxFilesInFlight" data-param="maxFilesInFlight" min="0" step="1" />
+              </div>
+              <p class="mono row-hint">
+                Peak memory scales with this, not thread count. 0 selects 2.
+              </p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">Options</span>
+              <div class="row-ctl">
+                <label class="check">
+                  <input type="checkbox" id="gapFill" data-param="gapFill" />
+                  <span>Gap fill missing values</span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="featuresOnly" data-param="featuresOnly" />
+                  <span>Features only — discard spectra with no MS1 peak</span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" id="keepCache" data-param="keepCache" />
+                  <span>Keep scan caches (required by the visualizer)</span>
+                </label>
+              </div>
+              <p class="mono row-hint">Caches are about the size of the input.</p>
+            </div>
+          </div>
+
+          <div class="aside">
+            <p class="mono micro muted">Settings file</p>
+            <div class="btn-set">
+              <button class="btn btn-quiet" id="btn-load-preset">Load…</button>
+              <button class="btn btn-quiet" id="btn-save-preset">Save as…</button>
+              <button class="btn btn-quiet" id="btn-reset">Reset to defaults</button>
+            </div>
+            <p class="mono micro muted">
+              Loading also accepts a 0.1-era <code>param.txt</code>.
+            </p>
+          </div>
+        </section>
+
+        <!-- ------------------------- about ------------------------ -->
+        <section class="view" id="view-about">
+          <header class="sec-head">
+            <p class="mono kicker">Colophon</p>
+            <div class="sec-body">
+              <h2>MetaboKit DDA</h2>
+              <p class="lede">
+                Data-dependent acquisition metabolomics. Rust throughout: the
+                analysis engine is a native library, the interface is a thin
+                web layer over it.
+              </p>
+            </div>
+          </header>
+
+          <div class="rows">
+            <div class="row">
+              <span class="mono row-label">Version</span>
+              <div class="row-ctl"><p class="mono" id="about-version">—</p></div>
+              <p class="mono row-hint"></p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">Platform</span>
+              <div class="row-ctl"><p class="mono" id="about-os">—</p></div>
+              <p class="mono row-hint"></p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">Cores detected</span>
+              <div class="row-ctl"><p class="mono" id="about-threads">—</p></div>
+              <p class="mono row-hint"></p>
+            </div>
+            <div class="row">
+              <span class="mono row-label">Appearance</span>
+              <div class="row-ctl">
+                <div class="seg" id="theme-seg">
+                  <button data-value="system" class="is-on">System</button>
+                  <button data-value="light">Light</button>
+                  <button data-value="dark">Dark</button>
+                </div>
+              </div>
+              <p class="mono row-hint"></p>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
