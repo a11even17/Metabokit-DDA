@@ -2005,7 +2005,7 @@ dependencies = [
 
 [[package]]
 name = "metabokit-app"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "csv",
  "metabokit-core",
@@ -2019,7 +2019,7 @@ dependencies = [
 
 [[package]]
 name = "metabokit-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "base64 0.22.1",
  "bytemuck",

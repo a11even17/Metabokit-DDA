@@ -169,8 +169,9 @@ env -u APPLE_ID \
   -u APPLE_API_KEY_PATH \
   cargo "${build_args[@]}"
 
-app_path="$(find "$bundle_dir" -type d -name 'MetaboKit DDA.app' -print -quit 2>/dev/null || true)"
-dmg_path="$(find "$bundle_dir" -type f -name '*.dmg' -print -quit 2>/dev/null || true)"
+app_version="$(sed -En 's/^[[:space:]]*"version":[[:space:]]*"([^"]+)".*/\1/p' "$TAURI_CONFIG" | head -n 1)"
+app_path="$(find "$bundle_dir/macos" -maxdepth 1 -type d -name 'MetaboKit DDA.app' -print -quit 2>/dev/null || true)"
+dmg_path="$(find "$bundle_dir/dmg" -maxdepth 1 -type f -name "*_${app_version}_*.dmg" -print -quit 2>/dev/null || true)"
 
 [[ -n "$dmg_path" ]] || fail "the DMG was not found under $bundle_dir"
 

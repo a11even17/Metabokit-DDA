@@ -22,6 +22,7 @@ const MAX_OVERVIEW_POINTS: usize = 200_000;
 const MAX_SPECTRA: usize = 96;
 const MAX_SPECTRUM_PEAKS: usize = 4_096;
 const MAX_MIRRORS: usize = 38;
+const BASE_PEAK_INTENSITY: f32 = 1_000.0;
 
 #[derive(Default)]
 pub struct VisualizerState {
@@ -725,6 +726,10 @@ impl MatchIndex {
                 continue;
             };
             let exp = &self.experimental[i];
+            let mut experimental = read_peaks(&mut exp_reader, exp.peaks_at, exp.peak_count)?;
+            let mut library = read_peaks(&mut lib_reader, lib.peaks_at, lib.peak_count)?;
+            normalize_to_base_peak(&mut experimental);
+            normalize_to_base_peak(&mut library);
             out.push(VizMirror {
                 name: self
                     .strings
@@ -737,8 +742,8 @@ impl MatchIndex {
                 ce: exp.ce,
                 score: exp.score,
                 shape: exp.shape,
-                experimental: read_peaks(&mut exp_reader, exp.peaks_at, exp.peak_count)?,
-                library: read_peaks(&mut lib_reader, lib.peaks_at, lib.peak_count)?,
+                experimental,
+                library,
             });
         }
         Ok(out)
@@ -900,4 +905,67 @@ fn read_peaks(
         out.sort_unstable_by(|a, b| a.mz.partial_cmp(&b.mz).unwrap_or(std::cmp::Ordering::Equal));
     }
     Ok(out)
+}
+
+/// Mirror spectra conventionally express each side relative to its own base
+/// peak. Keeping this normalization at the mirror-data boundary ensures it
+/// cannot change chromatograms or the standalone experimental spectrum view.
+fn normalize_to_base_peak(peaks: &mut [VizPeak]) {
+    let maximum = peaks
+        .iter()
+        .map(|peak| peak.intensity)
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .fold(0.0_f32, f32::max);
+
+    if maximum <= 0.0 {
+        for peak in peaks {
+            peak.intensity = 0.0;
+        }
+        return;
+    }
+
+    let scale = BASE_PEAK_INTENSITY / maximum;
+    for peak in peaks {
+        peak.intensity = if peak.intensity.is_finite() && peak.intensity > 0.0 {
+            peak.intensity * scale
+        } else {
+            0.0
+        };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{normalize_to_base_peak, VizPeak, BASE_PEAK_INTENSITY};
+
+    fn peak(intensity: f32) -> VizPeak {
+        VizPeak {
+            mz: 100.0,
+            intensity,
+            matched: false,
+        }
+    }
+
+    #[test]
+    fn mirror_sides_are_normalized_independently_to_one_thousand() {
+        let mut experimental = vec![peak(10.0), peak(5.0)];
+        let mut library = vec![peak(80.0), peak(20.0)];
+
+        normalize_to_base_peak(&mut experimental);
+        normalize_to_base_peak(&mut library);
+
+        assert_eq!(experimental[0].intensity, BASE_PEAK_INTENSITY);
+        assert_eq!(experimental[1].intensity, 500.0);
+        assert_eq!(library[0].intensity, BASE_PEAK_INTENSITY);
+        assert_eq!(library[1].intensity, 250.0);
+    }
+
+    #[test]
+    fn mirror_normalization_safely_handles_non_positive_values() {
+        let mut peaks = vec![peak(f32::NAN), peak(-4.0), peak(0.0)];
+
+        normalize_to_base_peak(&mut peaks);
+
+        assert!(peaks.iter().all(|peak| peak.intensity == 0.0));
+    }
 }

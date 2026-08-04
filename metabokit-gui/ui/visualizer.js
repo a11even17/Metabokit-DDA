@@ -988,6 +988,11 @@ export function createVisualizer({ invoke, log }) {
       ctx.stroke();
       ctx.fillText(formatTick(value), at, box.top + box.height + 7);
     }
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText("1000", box.left - 8, box.top + 8);
+    ctx.fillText("0", box.left - 8, baseline);
+    ctx.fillText("1000", box.left - 8, box.top + box.height - 8);
     const drawSide = (peaks, direction, color) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.4;
