@@ -36,6 +36,10 @@
     ],
     "category": "Utility",
     "shortDescription": "DDA metabolomics processing",
-    "longDescription": "Data-dependent acquisition metabolomics: mzML parsing, feature detection, spectral library scoring and cross-sample alignment."
+    "longDescription": "Data-dependent acquisition metabolomics: mzML parsing, feature detection, spectral library scoring and cross-sample alignment.",
+    "macOS": {
+      "minimumSystemVersion": "10.13",
+      "hardenedRuntime": true
+    }
   }
 }
