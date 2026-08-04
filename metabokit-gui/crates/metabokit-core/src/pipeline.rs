@@ -77,10 +77,7 @@ pub fn run(params: &Params, reporter: &dyn Reporter, cancel: &Cancel) -> Result<
     clear_stale_cache(&misc);
 
     let positive = resolve_polarity(params, reporter)?;
-    reporter.metric(
-        "polarity",
-        if positive { "positive" } else { "negative" },
-    );
+    reporter.metric("polarity", if positive { "positive" } else { "negative" });
 
     reporter.stage(Stage::Library);
     let lib = library::load(params, positive, reporter)?;
@@ -98,9 +95,7 @@ pub fn run(params: &Params, reporter: &dyn Reporter, cancel: &Cancel) -> Result<
     reporter.metric("threads", threads.to_string());
     let library_entries = lib.len();
 
-    let outputs = pool.install(|| {
-        process_samples(params, &lib, positive, reporter, cancel)
-    })?;
+    let outputs = pool.install(|| process_samples(params, &lib, positive, reporter, cancel))?;
 
     cancel.check()?;
 
@@ -278,7 +273,11 @@ fn process_one(
     // Persist before the in-memory copies are dropped; gap filling and the
     // visualizer both read these back through a memory map.
     let misc = params.misc_dir();
-    write_ms1_cache(&misc.join(ms1_cache_name(&stem)), &data.ms1, &data.timestamp)?;
+    write_ms1_cache(
+        &misc.join(ms1_cache_name(&stem)),
+        &data.ms1,
+        &data.timestamp,
+    )?;
     write_ms2_cache(&misc.join(ms2_cache_name(&stem)), &data.ms2)?;
 
     cancel.check()?;
@@ -287,15 +286,7 @@ fn process_one(
     write_feature_cache(&misc.join(feature_cache_name(&stem)), &peaks)?;
 
     cancel.check()?;
-    let result = score::score_sample(
-        index,
-        &data.ms1,
-        &data.ms2,
-        &peaks,
-        lib,
-        params,
-        cancel,
-    )?;
+    let result = score::score_sample(index, &data.ms1, &data.ms2, &peaks, lib, params, cancel)?;
 
     report::write_unknowns(
         &misc.join(format!("u_{stem}.txt")),
@@ -358,12 +349,11 @@ fn clear_stale_cache(misc: &Path) {
         let Some(name) = path.file_name().and_then(|x| x.to_str()) else {
             continue;
         };
-        let ours = (name.starts_with("ms1_")
-            || name.starts_with("ms2_")
-            || name.starts_with("features_"))
-            && name.ends_with(".mkc")
-            || (name.starts_with("u_") && name.ends_with(".txt"))
-            || name == "run.json";
+        let ours =
+            (name.starts_with("ms1_") || name.starts_with("ms2_") || name.starts_with("features_"))
+                && name.ends_with(".mkc")
+                || (name.starts_with("u_") && name.ends_with(".txt"))
+                || name == "run.json";
         if ours {
             let _ = std::fs::remove_file(&path);
         }

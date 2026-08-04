@@ -1,12 +1,13 @@
 import { createVisualizer } from "./visualizer.js";
+import { createPostprocessor } from "./postprocess.js";
 
 /* MetaboKit DDA — interface logic.
  *
  * No framework and no build step. The flow is: pick a folder, the Rust side
  * scans it and returns both a ready-to-run configuration and an auditable list
  * of what it concluded; the UI shows those conclusions and only asks for input
- * where the scan came up short. Everything the old parameter tabs exposed still
- * exists, under Advanced.
+ * where the scan came up short. The complete auto-filled parameter set remains
+ * reviewable in the collapsed panel at the bottom of Run.
  */
 
 const TAURI = window.__TAURI__;
@@ -29,6 +30,7 @@ let scan = null;
 let running = false;
 let lastOutcome = null;
 let visualizer = null;
+let postprocessor = null;
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel) => Array.from(document.querySelectorAll(sel));
@@ -177,6 +179,9 @@ async function runScan(dir, { restored = false } = {}) {
   }
   if (visualizer) {
     await visualizer.setOutput(params.outputDir, { reload: true });
+  }
+  if (postprocessor) {
+    await postprocessor.setOutput(params.outputDir, { reload: true });
   }
   log(restored ? `restored ${scan.root}` : `scanned ${scan.root}`);
   return true;
@@ -433,6 +438,9 @@ function showView(name) {
   if (name === "visualizer" && visualizer) {
     visualizer.activate().catch((err) => log(String(err), "error"));
   }
+  if (name === "postprocess" && postprocessor) {
+    postprocessor.activate().catch((err) => log(String(err), "error"));
+  }
 }
 
 function renderStages(current) {
@@ -535,6 +543,7 @@ function setRunning(on) {
     el.disabled = on;
   });
   if (visualizer) visualizer.setRunning(on);
+  if (postprocessor) postprocessor.setRunning(on);
   if (!on) {
     $("intensityCutoff").disabled = !$("intensityCutoffOn").checked;
     revalidate();
@@ -605,6 +614,11 @@ function wireEvents() {
         .setOutput(payload.outputDir, { reload: true })
         .catch((err) => log(String(err), "error"));
     }
+    if (postprocessor) {
+      postprocessor
+        .setOutput(payload.outputDir, { reload: true })
+        .catch((err) => log(String(err), "error"));
+    }
     log("run complete", "done");
   });
 
@@ -628,6 +642,47 @@ function wireEvents() {
 }
 
 /* -------------------------------------------------------------- wiring   */
+
+function embedRunParameters() {
+  const panel = $("view-advanced");
+  const host = $("run-advanced-host");
+  if (!panel || !host) return;
+  panel.classList.remove("view");
+  panel.classList.add("run-advanced-body");
+  host.append(panel);
+  $("run-parameters").addEventListener("toggle", (event) => {
+    const label = event.currentTarget.querySelector("summary > span:last-child");
+    label.textContent = event.currentTarget.open ? "Hide settings" : "Show settings";
+  });
+}
+
+function resolvedTheme() {
+  const chosen = document.documentElement.dataset.theme || "system";
+  if (chosen !== "system") return chosen;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function syncThemeControls() {
+  const chosen = document.documentElement.dataset.theme || "system";
+  Array.from($("theme-seg").children).forEach((button) =>
+    button.classList.toggle("is-on", button.dataset.value === chosen)
+  );
+  const dark = resolvedTheme() === "dark";
+  $("theme-toggle").textContent = dark ? "Day mode" : "Night mode";
+  $("theme-toggle").setAttribute("aria-label", dark ? "Switch to day mode" : "Switch to night mode");
+}
+
+function applyTheme(value, persist = true) {
+  document.documentElement.dataset.theme = value;
+  if (persist) {
+    try {
+      localStorage.setItem("mk-theme", value);
+    } catch (err) {
+      /* private mode; the choice simply will not persist */
+    }
+  }
+  syncThemeControls();
+}
 
 function wireControls() {
   $$("[data-view]").forEach((btn) => {
@@ -680,6 +735,7 @@ function wireControls() {
       $("ds-output").textContent = dir;
     }
     if (visualizer) visualizer.setOutput(dir).catch(() => {});
+    if (postprocessor) postprocessor.setOutput(dir).catch(() => {});
     revalidate();
   });
 
@@ -748,13 +804,14 @@ function wireControls() {
   $("theme-seg").addEventListener("click", (e) => {
     const btn = e.target.closest("button");
     if (!btn) return;
-    document.documentElement.dataset.theme = btn.dataset.value;
-    try {
-      localStorage.setItem("mk-theme", btn.dataset.value);
-    } catch (err) {
-      /* private mode; the choice simply will not persist */
-    }
+    applyTheme(btn.dataset.value);
   });
+  $("theme-toggle").addEventListener("click", () => {
+    applyTheme(resolvedTheme() === "dark" ? "light" : "dark");
+  });
+  const scheme = window.matchMedia("(prefers-color-scheme: dark)");
+  if (scheme.addEventListener) scheme.addEventListener("change", syncThemeControls);
+  else if (scheme.addListener) scheme.addListener(syncThemeControls);
 }
 
 /* --------------------------------------------------------------- startup */
@@ -766,13 +823,17 @@ async function main() {
   } catch (err) {
     /* ignore */
   }
-  document.documentElement.dataset.theme = stored;
-  Array.from($("theme-seg").children).forEach((b) =>
-    b.classList.toggle("is-on", b.dataset.value === stored)
-  );
+  applyTheme(stored, false);
 
   renderStages(null);
+  embedRunParameters();
   visualizer = createVisualizer({ invoke, log });
+  postprocessor = createPostprocessor({
+    invoke,
+    saveDialog: dialogSave,
+    asPath,
+    log,
+  });
   wireControls();
   wireEvents();
 

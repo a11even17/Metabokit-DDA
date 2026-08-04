@@ -221,42 +221,40 @@ pub fn parse(path: &Path, cancel: &Cancel) -> Result<MzmlData> {
         match event {
             Event::Eof => break,
 
-            Event::Start(e) => {
-                match e.local_name().as_ref() {
-                    b"run" => {
-                        if let Some(ts) = attr_str(&e, "startTimeStamp") {
-                            timestamp = ts;
-                        }
+            Event::Start(e) => match e.local_name().as_ref() {
+                b"run" => {
+                    if let Some(ts) = attr_str(&e, "startTimeStamp") {
+                        timestamp = ts;
                     }
-                    b"spectrumList" => in_spectrum_list = true,
-                    b"spectrum" => {
-                        spec.reset();
-                        spectra_seen += 1;
-                        if spectra_seen % 256 == 0 {
-                            cancel.check()?;
-                        }
-                    }
-                    b"binaryDataArray" => {
-                        zlib = None;
-                        f64bit = None;
-                        array_kind = ArrayKind::Other;
-                    }
-                    b"binary" => in_binary = true,
-                    b"cvParam" => {
-                        read_cv_param(
-                            &e,
-                            &mut spec,
-                            &mut zlib,
-                            &mut f64bit,
-                            &mut array_kind,
-                            &mut polarity,
-                            &mut rt_seconds,
-                            path,
-                        )?;
-                    }
-                    _ => {}
                 }
-            }
+                b"spectrumList" => in_spectrum_list = true,
+                b"spectrum" => {
+                    spec.reset();
+                    spectra_seen += 1;
+                    if spectra_seen % 256 == 0 {
+                        cancel.check()?;
+                    }
+                }
+                b"binaryDataArray" => {
+                    zlib = None;
+                    f64bit = None;
+                    array_kind = ArrayKind::Other;
+                }
+                b"binary" => in_binary = true,
+                b"cvParam" => {
+                    read_cv_param(
+                        &e,
+                        &mut spec,
+                        &mut zlib,
+                        &mut f64bit,
+                        &mut array_kind,
+                        &mut polarity,
+                        &mut rt_seconds,
+                        path,
+                    )?;
+                }
+                _ => {}
+            },
 
             Event::Empty(e) => {
                 if e.local_name().as_ref() == b"cvParam" {
@@ -284,9 +282,8 @@ pub fn parse(path: &Path, cancel: &Cancel) -> Result<MzmlData> {
                 let zlib = zlib.ok_or_else(|| {
                     Error::mzml(path, "binary array without a compression cvParam")
                 })?;
-                let f64bit = f64bit.ok_or_else(|| {
-                    Error::mzml(path, "binary array without a precision cvParam")
-                })?;
+                let f64bit = f64bit
+                    .ok_or_else(|| Error::mzml(path, "binary array without a precision cvParam"))?;
                 let text = t
                     .decode()
                     .map_err(|e| Error::mzml(path, format!("binary text: {e}")))?;

@@ -182,10 +182,7 @@ pub fn detect(
     peaks.sort_unstable_by(|a, b| {
         a.mz.partial_cmp(&b.mz)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| {
-                a.rt.partial_cmp(&b.rt)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .then_with(|| a.rt.partial_cmp(&b.rt).unwrap_or(std::cmp::Ordering::Equal))
     });
     Ok(deduplicate(peaks))
 }
@@ -315,8 +312,9 @@ fn find_ridges(
     let noise = if s.noise.is_empty() {
         0.0
     } else {
-        s.noise
-            .select_nth_unstable_by(k, |a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        s.noise.select_nth_unstable_by(k, |a, b| {
+            a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+        });
         s.noise[k]
     };
 
@@ -332,10 +330,7 @@ fn find_ridges(
     for i in 0..n_scans.saturating_sub(1) {
         let mid = (rt_all[i] + rt_all[i + 1]) * 0.5;
         let from = s.msms_rt.partition_point(|&x| x < mid - RT_SEARCH);
-        let near = s
-            .msms_rt
-            .get(from)
-            .is_some_and(|&x| x < mid + RT_SEARCH);
+        let near = s.msms_rt.get(from).is_some_and(|&x| x < mid + RT_SEARCH);
         if near || prev_active {
             prev_active = near;
             s.eic_rt.push(mid);
@@ -403,7 +398,10 @@ fn find_ridges(
             if !(max_v > 0.0) {
                 break;
             }
-            if max_i == 0 || max_i + 1 >= n_pts || s.row[max_i - 1] <= 0.0 || s.row[max_i + 1] <= 0.0
+            if max_i == 0
+                || max_i + 1 >= n_pts
+                || s.row[max_i - 1] <= 0.0
+                || s.row[max_i + 1] <= 0.0
             {
                 // A maximum sitting on a zero shoulder is an edge artefact.
                 s.row[max_i] = 0.0;
@@ -449,8 +447,7 @@ fn link_ridge(
         let scan_of = |t: f32| rt_all.partition_point(|&x| x < t);
         if let Some(r) = ridges.iter_mut().find(|r| {
             r.last_scale == prev_scale
-                && ((r.last_rt - rt).abs() < 0.01
-                    || scan_of(rt).abs_diff(scan_of(r.last_rt)) < 2)
+                && ((r.last_rt - rt).abs() < 0.01 || scan_of(rt).abs_diff(scan_of(r.last_rt)) < 2)
         }) {
             r.last_rt = rt;
             r.last_scale = scales[scale_idx];

@@ -14,13 +14,19 @@ pub enum Error {
     Io(std::io::Error, Option<PathBuf>),
     Csv(csv::Error),
     /// Malformed or unsupported mzML.
-    Mzml { file: PathBuf, detail: String },
+    Mzml {
+        file: PathBuf,
+        detail: String,
+    },
     /// A binary data array could not be base64/zlib decoded.
     Decode(String),
     /// Invalid or contradictory run parameters.
     Param(String),
     /// A spectral library could not be read.
-    Library { source: String, detail: String },
+    Library {
+        source: String,
+        detail: String,
+    },
     /// The user asked to stop.
     Cancelled,
 }

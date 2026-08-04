@@ -485,9 +485,7 @@ fn read_builtin(
             frags.retain(|x| x.0 < cutoff);
         }
 
-        builder.push(
-            mmass, charge, None, adduct, ent_name, inchikey, "", &frags,
-        );
+        builder.push(mmass, charge, None, adduct, ent_name, inchikey, "", &frags);
         entries += 1;
     }
 
@@ -501,7 +499,10 @@ fn read_builtin(
 /// Lipid shorthand filter carried over from 0.1: entries whose acyl-chain
 /// notation falls outside plausible ranges are dropped.
 fn lipid_chain_ok(re: &Regex, name: &str) -> bool {
-    if ["CAR ", "VAE ", "CE ", "CL "].iter().any(|p| name.starts_with(p)) {
+    if ["CAR ", "VAE ", "CE ", "CL "]
+        .iter()
+        .any(|p| name.starts_with(p))
+    {
         return true;
     }
     let chains: Vec<(u8, u8)> = re
@@ -571,7 +572,9 @@ fn read_msp(builder: &mut Builder, path: &Path) -> Result<LoadedSource> {
             "PRECURSORTYPE" | "PRECURSOR_TYPE" => {
                 let (a, c) = match bracket_re.captures(value) {
                     Some(caps) => (
-                        caps.get(1).map(|m| m.as_str().to_string()).unwrap_or_default(),
+                        caps.get(1)
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_default(),
                         caps.get(2)
                             .and_then(|m| m.as_str().parse::<i8>().ok())
                             .unwrap_or(1),
@@ -609,12 +612,7 @@ fn read_msp(builder: &mut Builder, path: &Path) -> Result<LoadedSource> {
                 // If any fragment is starred, only starred fragments count.
                 let starred = frags.iter().any(|x| x.2);
                 kept.clear();
-                kept.extend(
-                    frags
-                        .iter()
-                        .filter(|x| !starred || x.2)
-                        .map(|x| (x.0, x.1)),
-                );
+                kept.extend(frags.iter().filter(|x| !starred || x.2).map(|x| (x.0, x.1)));
                 // Descending intensity, so the later `match_n_fragments`
                 // truncation keeps the most informative peaks.
                 kept.sort_unstable_by(|a, b| {
@@ -790,7 +788,9 @@ pub struct Metadata {
 impl Metadata {
     /// Exact InChIKey matches.
     pub fn exact(&self, key: &str) -> &[Annotation] {
-        let lo = self.annotations.partition_point(|a| a.inchikey.as_str() < key);
+        let lo = self
+            .annotations
+            .partition_point(|a| a.inchikey.as_str() < key);
         let mut hi = lo;
         while hi < self.annotations.len() && self.annotations[hi].inchikey == key {
             hi += 1;
@@ -915,7 +915,11 @@ pub fn available_builtins(libs_dir: Option<&PathBuf>) -> Vec<(String, bool, bool
     crate::params::BUILTIN_LIBRARIES
         .iter()
         .map(|name| {
-            let base = if *name == "Atlas_filtered" { "Atlas" } else { name };
+            let base = if *name == "Atlas_filtered" {
+                "Atlas"
+            } else {
+                name
+            };
             (
                 (*name).to_string(),
                 dir.join(format!("{base}_pos")).is_file(),

@@ -306,7 +306,10 @@ impl Params {
         let mut out = Vec::new();
 
         if self.mzml_files.is_empty() {
-            out.push(Problem::fatal("mzmlFiles", "Select at least one mzML file."));
+            out.push(Problem::fatal(
+                "mzmlFiles",
+                "Select at least one mzML file.",
+            ));
         }
         for f in &self.mzml_files {
             if !f.is_file() {
@@ -338,7 +341,10 @@ impl Params {
         for lib in &self.libraries {
             match lib {
                 LibrarySource::Builtin(name) => {
-                    if !BUILTIN_LIBRARIES.iter().any(|b| b.eq_ignore_ascii_case(name)) {
+                    if !BUILTIN_LIBRARIES
+                        .iter()
+                        .any(|b| b.eq_ignore_ascii_case(name))
+                    {
                         out.push(Problem::fatal(
                             "libraries",
                             format!("Unknown built-in library {name:?}."),
@@ -369,10 +375,16 @@ impl Params {
             ));
         }
         if !(0.0..=1.0).contains(&self.ms2_score) {
-            out.push(Problem::fatal("ms2Score", "MS2 score must be within 0 – 1."));
+            out.push(Problem::fatal(
+                "ms2Score",
+                "MS2 score must be within 0 – 1.",
+            ));
         }
         if !(0.0..=1.0).contains(&self.peak_shape) {
-            out.push(Problem::fatal("peakShape", "Peak shape must be within 0 – 1."));
+            out.push(Problem::fatal(
+                "peakShape",
+                "Peak shape must be within 0 – 1.",
+            ));
         }
         if self.match_n_fragments == 0 {
             out.push(Problem::fatal(
@@ -393,7 +405,10 @@ impl Params {
             ));
         }
         if self.ms1_tol_unit == TolUnit::Ppm && self.ms1_tol > 100.0 {
-            out.push(Problem::warn("ms1Tol", "A tolerance above 100 ppm is unusually wide."));
+            out.push(Problem::warn(
+                "ms1Tol",
+                "A tolerance above 100 ppm is unusually wide.",
+            ));
         }
         if self.rt_shift <= 0.0 {
             out.push(Problem::fatal("rtShift", "RT shift must be positive."));
@@ -467,8 +482,11 @@ impl Params {
             })
         };
         let bool_at = |t: &toml::Table, k: &str| t.get(k).and_then(toml::Value::as_bool);
-        let usize_at =
-            |t: &toml::Table, k: &str| t.get(k).and_then(toml::Value::as_integer).map(|x| x as usize);
+        let usize_at = |t: &toml::Table, k: &str| {
+            t.get(k)
+                .and_then(toml::Value::as_integer)
+                .map(|x| x as usize)
+        };
 
         if let Some(pattern) = table.get("mzML_files").and_then(toml::Value::as_str) {
             if let Ok(paths) = glob::glob(pattern) {
@@ -479,13 +497,17 @@ impl Params {
             for item in list.iter().filter_map(toml::Value::as_str) {
                 let item = item.trim();
                 if let Some(rest) = item.strip_prefix("user ") {
-                    p.libraries.push(LibrarySource::Msp(PathBuf::from(rest.trim())));
+                    p.libraries
+                        .push(LibrarySource::Msp(PathBuf::from(rest.trim())));
                 } else if let Some(rest) = item.strip_prefix("csv ") {
-                    p.libraries.push(LibrarySource::Csv(PathBuf::from(rest.trim())));
-                } else if let Some(name) =
-                    BUILTIN_LIBRARIES.iter().find(|b| b.eq_ignore_ascii_case(item))
+                    p.libraries
+                        .push(LibrarySource::Csv(PathBuf::from(rest.trim())));
+                } else if let Some(name) = BUILTIN_LIBRARIES
+                    .iter()
+                    .find(|b| b.eq_ignore_ascii_case(item))
                 {
-                    p.libraries.push(LibrarySource::Builtin((*name).to_string()));
+                    p.libraries
+                        .push(LibrarySource::Builtin((*name).to_string()));
                 }
             }
         }
@@ -526,25 +548,61 @@ impl Params {
                 .collect();
         }
 
-        if let Some(v) = f32_at(&table, "ms2tol") { p.ms2_tol = v; }
-        if let Some(v) = f32_at(&table, "mz_shift") { p.mz_shift = v; }
-        if let Some(v) = f32_at(&table, "ISF_parent_mass_diff") { p.isf_parent_mass_diff = v; }
-        if let Some(v) = f32_at(&table, "MS2_score") { p.ms2_score = v; }
-        if let Some(v) = f32_at(&table, "RT_shift") { p.rt_shift = v; }
-        if let Some(v) = f32_at(&table, "peak_shape") { p.peak_shape = v; }
-        if let Some(v) = f32_at(&table, "sn_score") { p.sn_score = v; }
-        if let Some(v) = f32_at(&table, "S_N_1") { p.s_n_1 = v; }
-        if let Some(v) = f32_at(&table, "MS1_MS2_pair") { p.ms1_ms2_pair = v; }
-        if let Some(v) = f32_at(&table, "impute_width") { p.impute_width = v; }
-        if let Some(v) = f32_at(&table, "integration_RT") { p.integration_rt = v; }
-        if let Some(v) = f32_at(&table, "integration_mz") { p.integration_mz = v; }
+        if let Some(v) = f32_at(&table, "ms2tol") {
+            p.ms2_tol = v;
+        }
+        if let Some(v) = f32_at(&table, "mz_shift") {
+            p.mz_shift = v;
+        }
+        if let Some(v) = f32_at(&table, "ISF_parent_mass_diff") {
+            p.isf_parent_mass_diff = v;
+        }
+        if let Some(v) = f32_at(&table, "MS2_score") {
+            p.ms2_score = v;
+        }
+        if let Some(v) = f32_at(&table, "RT_shift") {
+            p.rt_shift = v;
+        }
+        if let Some(v) = f32_at(&table, "peak_shape") {
+            p.peak_shape = v;
+        }
+        if let Some(v) = f32_at(&table, "sn_score") {
+            p.sn_score = v;
+        }
+        if let Some(v) = f32_at(&table, "S_N_1") {
+            p.s_n_1 = v;
+        }
+        if let Some(v) = f32_at(&table, "MS1_MS2_pair") {
+            p.ms1_ms2_pair = v;
+        }
+        if let Some(v) = f32_at(&table, "impute_width") {
+            p.impute_width = v;
+        }
+        if let Some(v) = f32_at(&table, "integration_RT") {
+            p.integration_rt = v;
+        }
+        if let Some(v) = f32_at(&table, "integration_mz") {
+            p.integration_mz = v;
+        }
         p.intensity_cutoff = f32_at(&table, "intensity_cutoff");
-        if let Some(v) = usize_at(&table, "min_peaks") { p.min_peaks = v.min(255) as u8; }
-        if let Some(v) = usize_at(&table, "num_threads") { p.threads = v; }
-        if let Some(v) = usize_at(&table, "match_n_fragments") { p.match_n_fragments = v; }
-        if let Some(v) = bool_at(&table, "features_only") { p.features_only = v; }
-        if let Some(v) = bool_at(&table, "top_scoring_only") { p.top_scoring_only = v; }
-        if let Some(v) = bool_at(&table, "chimeric_spectra") { p.chimeric_spectra = v; }
+        if let Some(v) = usize_at(&table, "min_peaks") {
+            p.min_peaks = v.min(255) as u8;
+        }
+        if let Some(v) = usize_at(&table, "num_threads") {
+            p.threads = v;
+        }
+        if let Some(v) = usize_at(&table, "match_n_fragments") {
+            p.match_n_fragments = v;
+        }
+        if let Some(v) = bool_at(&table, "features_only") {
+            p.features_only = v;
+        }
+        if let Some(v) = bool_at(&table, "top_scoring_only") {
+            p.top_scoring_only = v;
+        }
+        if let Some(v) = bool_at(&table, "chimeric_spectra") {
+            p.chimeric_spectra = v;
+        }
 
         if let Some(dir) = origin.parent() {
             if p.output_dir.as_os_str().is_empty() {

@@ -24,7 +24,14 @@ use crate::params::{LibrarySource, Params, Polarity, BUILTIN_LIBRARIES};
 use crate::report::ReportSummary;
 
 /// Directory names never worth descending into.
-const SKIP_DIRS: [&str; 6] = ["misc", "target", "node_modules", "results", "$RECYCLE.BIN", "System Volume Information"];
+const SKIP_DIRS: [&str; 6] = [
+    "misc",
+    "target",
+    "node_modules",
+    "results",
+    "$RECYCLE.BIN",
+    "System Volume Information",
+];
 
 /// How deep below the chosen folder to look for samples.
 const MAX_DEPTH: usize = 3;
@@ -52,13 +59,25 @@ pub struct Note {
 
 impl Note {
     fn ok(topic: &str, message: impl Into<String>) -> Self {
-        Note { level: NoteLevel::Ok, topic: topic.into(), message: message.into() }
+        Note {
+            level: NoteLevel::Ok,
+            topic: topic.into(),
+            message: message.into(),
+        }
     }
     fn warn(topic: &str, message: impl Into<String>) -> Self {
-        Note { level: NoteLevel::Warn, topic: topic.into(), message: message.into() }
+        Note {
+            level: NoteLevel::Warn,
+            topic: topic.into(),
+            message: message.into(),
+        }
     }
     fn blocked(topic: &str, message: impl Into<String>) -> Self {
-        Note { level: NoteLevel::Blocked, topic: topic.into(), message: message.into() }
+        Note {
+            level: NoteLevel::Blocked,
+            topic: topic.into(),
+            message: message.into(),
+        }
     }
 }
 
@@ -137,10 +156,7 @@ fn natural_cmp(a: &str, b: &str) -> Ordering {
                 other => return other,
             }
         } else {
-            match ab[i]
-                .to_ascii_lowercase()
-                .cmp(&bb[j].to_ascii_lowercase())
-            {
+            match ab[i].to_ascii_lowercase().cmp(&bb[j].to_ascii_lowercase()) {
                 Ordering::Equal => {
                     i += 1;
                     j += 1;
@@ -233,7 +249,9 @@ fn looks_like_library_csv(path: &Path) -> bool {
         return false;
     }
     let has_name = fields.iter().any(|f| f.contains("name"));
-    let has_adduct = fields.iter().any(|f| f.contains("adduct") || f.contains("precursortype"));
+    let has_adduct = fields
+        .iter()
+        .any(|f| f.contains("adduct") || f.contains("precursortype"));
     let has_mz = fields
         .iter()
         .any(|f| *f == "mz" || f.contains("m/z") || f.contains("precursormz"));
@@ -257,20 +275,29 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
     let mut params;
     let mut imported_settings = None;
     match &found.param_txt {
-        Some(p) => match std::fs::read_to_string(p).ok().and_then(|text| Params::from_legacy(&text, p).ok()) {
+        Some(p) => match std::fs::read_to_string(p)
+            .ok()
+            .and_then(|text| Params::from_legacy(&text, p).ok())
+        {
             Some(imported) => {
                 params = imported;
                 imported_settings = Some(p.to_string_lossy().into_owned());
                 notes.push(Note::ok(
                     "settings",
-                    format!("imported analysis settings from {}", display_relative(root, p)),
+                    format!(
+                        "imported analysis settings from {}",
+                        display_relative(root, p)
+                    ),
                 ));
             }
             None => {
                 params = Params::default();
                 notes.push(Note::warn(
                     "settings",
-                    format!("{} could not be parsed; using defaults", display_relative(root, p)),
+                    format!(
+                        "{} could not be parsed; using defaults",
+                        display_relative(root, p)
+                    ),
                 ));
             }
         },
@@ -287,17 +314,25 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
         .cloned()
         .collect();
 
-    let mut mzml = if ordered_from_settings.len() >= found.mzml.len() && !ordered_from_settings.is_empty() {
-        notes.push(Note::ok("samples", "sample order taken from file_order.txt"));
-        ordered_from_settings
-    } else {
-        found.mzml.clone()
-    };
+    let mut mzml =
+        if ordered_from_settings.len() >= found.mzml.len() && !ordered_from_settings.is_empty() {
+            notes.push(Note::ok(
+                "samples",
+                "sample order taken from file_order.txt",
+            ));
+            ordered_from_settings
+        } else {
+            found.mzml.clone()
+        };
     if mzml.len() == found.mzml.len() {
         mzml.sort_by(|a, b| {
             natural_cmp(
-                &a.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default(),
-                &b.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default(),
+                &a.file_name()
+                    .map(|x| x.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                &b.file_name()
+                    .map(|x| x.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
             )
         });
     }
@@ -305,7 +340,10 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
     let samples: Vec<SampleEntry> = mzml
         .iter()
         .map(|p| SampleEntry {
-            name: p.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default(),
+            name: p
+                .file_name()
+                .map(|x| x.to_string_lossy().into_owned())
+                .unwrap_or_default(),
             bytes: std::fs::metadata(p).map(|m| m.len()).unwrap_or(0),
             subfolder: p
                 .parent()
@@ -339,12 +377,18 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
         Some(first) => match mzml::sniff_polarity(first) {
             Ok(Some(true)) => {
                 params.polarity = Polarity::Positive;
-                notes.push(Note::ok("polarity", "positive mode, read from the first sample"));
+                notes.push(Note::ok(
+                    "polarity",
+                    "positive mode, read from the first sample",
+                ));
                 "positive"
             }
             Ok(Some(false)) => {
                 params.polarity = Polarity::Negative;
-                notes.push(Note::ok("polarity", "negative mode, read from the first sample"));
+                notes.push(Note::ok(
+                    "polarity",
+                    "negative mode, read from the first sample",
+                ));
                 "negative"
             }
             _ => {
@@ -367,11 +411,7 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
             let candidate = root.join("libs");
             candidate.is_dir().then_some(candidate)
         })
-        .or_else(|| {
-            root.parent()
-                .map(|p| p.join("libs"))
-                .filter(|p| p.is_dir())
-        })
+        .or_else(|| root.parent().map(|p| p.join("libs")).filter(|p| p.is_dir()))
         .or_else(|| params.resolve_libs_dir());
 
     params.libs_dir = libs_dir.clone();
@@ -389,7 +429,14 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
                 libraries.push(DetectedLibrary {
                     kind: "builtin".into(),
                     label: name.clone(),
-                    detail: format!("{} mode", if want_positive { "positive" } else { "negative" }),
+                    detail: format!(
+                        "{} mode",
+                        if want_positive {
+                            "positive"
+                        } else {
+                            "negative"
+                        }
+                    ),
                 });
                 sources.push(LibrarySource::Builtin(name));
             }
@@ -400,7 +447,11 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
                 format!(
                     "{} holds no library for {} mode",
                     display_relative(root, dir),
-                    if want_positive { "positive" } else { "negative" }
+                    if want_positive {
+                        "positive"
+                    } else {
+                        "negative"
+                    }
                 ),
             ));
         }
@@ -409,7 +460,10 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
     for path in &found.msp {
         libraries.push(DetectedLibrary {
             kind: "msp".into(),
-            label: path.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default(),
+            label: path
+                .file_name()
+                .map(|x| x.to_string_lossy().into_owned())
+                .unwrap_or_default(),
             detail: display_relative(root, path),
         });
         sources.push(LibrarySource::Msp(path.clone()));
@@ -420,7 +474,10 @@ pub fn scan(root: &Path) -> Result<DatasetScan> {
         }
         libraries.push(DetectedLibrary {
             kind: "csv".into(),
-            label: path.file_name().map(|x| x.to_string_lossy().into_owned()).unwrap_or_default(),
+            label: path
+                .file_name()
+                .map(|x| x.to_string_lossy().into_owned())
+                .unwrap_or_default(),
             detail: display_relative(root, path),
         });
         sources.push(LibrarySource::Csv(path.clone()));
@@ -585,10 +642,7 @@ fn summarize_reports(by_rt: &Path, by_id: &Path) -> Option<ReportSummary> {
 /// Reports contain a timestamp preamble before their real CSV header. Locate
 /// that header instead of assuming it is the first record so older output is
 /// restored as reliably as newly-written output.
-fn read_report(
-    path: &Path,
-    mut visit: impl FnMut(&str, &str, &str),
-) -> Option<()> {
+fn read_report(path: &Path, mut visit: impl FnMut(&str, &str, &str)) -> Option<()> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true)
@@ -644,7 +698,14 @@ pub fn refresh_libraries(params: &mut Params) -> Vec<DetectedLibrary> {
                 libraries.push(DetectedLibrary {
                     kind: "builtin".into(),
                     label: name.clone(),
-                    detail: format!("{} mode", if want_positive { "positive" } else { "negative" }),
+                    detail: format!(
+                        "{} mode",
+                        if want_positive {
+                            "positive"
+                        } else {
+                            "negative"
+                        }
+                    ),
                 });
                 builtins.push(LibrarySource::Builtin(name));
             }

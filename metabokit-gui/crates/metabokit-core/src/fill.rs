@@ -62,11 +62,9 @@ pub fn gap_fill(
     };
 
     let find = |name: &str| header.iter().position(|x| x.trim() == name);
-    let (Some(detected_at), Some(mz_at), Some(rt_at)) = (
-        find("%detected"),
-        find("feature_m/z"),
-        find("Median RT"),
-    ) else {
+    let (Some(detected_at), Some(mz_at), Some(rt_at)) =
+        (find("%detected"), find("feature_m/z"), find("Median RT"))
+    else {
         reporter.warn(format!(
             "{} is missing expected columns; skipping gap fill",
             src.display()
@@ -110,7 +108,13 @@ pub fn gap_fill(
             }
             let area = match (view, mz, rt) {
                 (Some(view), Some(mz), Some(rt)) => {
-                    view.xic(mz, rt, params.impute_width, params.integration_mz, &mut chrom);
+                    view.xic(
+                        mz,
+                        rt,
+                        params.impute_width,
+                        params.integration_mz,
+                        &mut chrom,
+                    );
                     filled += 1;
                     trapezoid(&chrom) * 30.0
                 }
@@ -119,12 +123,7 @@ pub fn gap_fill(
             out.push(format!("{area:.1}"));
         }
 
-        out.extend(
-            record
-                .iter()
-                .skip(area_at + n_files)
-                .map(str::to_string),
-        );
+        out.extend(record.iter().skip(area_at + n_files).map(str::to_string));
         wtr.write_record(&out)?;
     }
 

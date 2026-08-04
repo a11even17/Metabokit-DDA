@@ -413,7 +413,13 @@ pub fn write_ms2_cache(path: &Path, set: &Ms2Set) -> Result<()> {
     let file = File::create(path).at(path)?;
     let mut w = BufWriter::with_capacity(1 << 20, file);
     (|| -> std::io::Result<()> {
-        write_header(&mut w, MS2_MAGIC, set.len() as u32, set.mz.len() as u32, &[])?;
+        write_header(
+            &mut w,
+            MS2_MAGIC,
+            set.len() as u32,
+            set.mz.len() as u32,
+            &[],
+        )?;
         write_f32s(&mut w, &set.prec_mz)?;
         write_f32s(&mut w, &set.rt)?;
         write_f32s(&mut w, &set.ce)?;

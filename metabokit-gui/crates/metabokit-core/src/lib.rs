@@ -65,7 +65,10 @@ mod tests {
     fn defaults_are_invalid_until_configured() {
         let p = Params::default();
         let problems = p.validate();
-        assert!(problems.iter().any(|x| x.fatal), "empty params must not run");
+        assert!(
+            problems.iter().any(|x| x.fatal),
+            "empty params must not run"
+        );
     }
 
     #[test]

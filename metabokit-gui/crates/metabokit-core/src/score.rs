@@ -189,9 +189,7 @@ fn filter_spectra(ms2: &Ms2Set, params: &Params) -> SpecSet {
         ranked.sort_unstable_by(|a, b| {
             b.1.partial_cmp(&a.1)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then_with(|| {
-                    a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
-                })
+                .then_with(|| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal))
         });
         ranked.truncate(u8::MAX as usize);
         if ranked.is_empty() {
@@ -215,9 +213,7 @@ fn filter_spectra(ms2: &Ms2Set, params: &Params) -> SpecSet {
         out.full_off.push(out.full_mz.len() as u32);
 
         ranked.truncate(scored_len);
-        ranked.sort_unstable_by(|a, b| {
-            a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        ranked.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
         for &(mz, inten) in &ranked {
             out.scored_mz.push(mz);
             out.scored_i.push(inten);
@@ -310,7 +306,12 @@ fn assign_spectra(
 /// one when the heavier one's spectrum contains a fragment at the lighter
 /// precursor's m/z with at least 10% of base-peak intensity, and the two
 /// spectra share more than one of the lighter one's top fragments.
-fn match_isf(groups: &[FeatureSpectra], specs: &SpecSet, peaks: &[Peak], params: &Params) -> Vec<Vec<(u32, u8)>> {
+fn match_isf(
+    groups: &[FeatureSpectra],
+    specs: &SpecSet,
+    peaks: &[Peak],
+    params: &Params,
+) -> Vec<Vec<(u32, u8)>> {
     let mut out: Vec<Vec<(u32, u8)>> = vec![Vec::new(); groups.len()];
     let tol = params.ms2_tol;
 
@@ -444,11 +445,7 @@ fn similarity(lib_i: &[f32], exp_i: &[f32]) -> f32 {
     if lib_sum <= 0.0 || exp_sum <= 0.0 {
         return 0.0;
     }
-    let numerator: f32 = lib_i
-        .iter()
-        .zip(exp_i)
-        .map(|(&a, &b)| (a * b).sqrt())
-        .sum();
+    let numerator: f32 = lib_i.iter().zip(exp_i).map(|(&a, &b)| (a * b).sqrt()).sum();
     numerator / (lib_sum * exp_sum).sqrt()
 }
 

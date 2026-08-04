@@ -147,7 +147,15 @@ pub fn write_reports(
         }
         for name in &names {
             compound_names.push(name);
-            write_row(&ctx, &mut by_id, members, group_no, &isf_of, &[], Some(name))?;
+            write_row(
+                &ctx,
+                &mut by_id,
+                members,
+                group_no,
+                &isf_of,
+                &[],
+                Some(name),
+            )?;
         }
 
         // Rows for fragments of this group, when it is itself a parent.
@@ -328,9 +336,10 @@ fn write_row(
     // A hit is "confident" if it clears both thresholds. If nothing in the
     // group is confident, fall back to reporting everything rather than an
     // empty row.
-    let any_confident = member_hits.iter().flatten().any(|h| {
-        h.score > ctx.params.ms2_score && h.matched_peaks >= ctx.params.min_peaks
-    });
+    let any_confident = member_hits
+        .iter()
+        .flatten()
+        .any(|h| h.score > ctx.params.ms2_score && h.matched_peaks >= ctx.params.min_peaks);
     let confident = |h: &LibHit| {
         !any_confident
             || (h.score > ctx.params.ms2_score && h.matched_peaks >= ctx.params.min_peaks)
@@ -727,7 +736,10 @@ fn write_header_block(
     writeln!(
         w,
         "SAMPLE: {}",
-        file_stems.get(ann.file as usize).map(String::as_str).unwrap_or("")
+        file_stems
+            .get(ann.file as usize)
+            .map(String::as_str)
+            .unwrap_or("")
     )?;
     let ce = specs.ce(si);
     if ce > 0.0 {
@@ -735,11 +747,7 @@ fn write_header_block(
     }
     writeln!(w, "SCORE: {:.2}", hit.score)?;
     writeln!(w, "SHAPE: {:.2}", ann.shape)?;
-    writeln!(
-        w,
-        "MASS_DIFF(LIB-EXP): {:.4}",
-        ctx.lib.mass(e) - ann.premz
-    )?;
+    writeln!(w, "MASS_DIFF(LIB-EXP): {:.4}", ctx.lib.mass(e) - ann.premz)?;
     writeln!(w, "RETENTIONTIME: {:.2}", ann.rt)?;
     Ok(())
 }

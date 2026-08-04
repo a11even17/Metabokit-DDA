@@ -7,6 +7,8 @@
  */
 
 const $ = (id) => document.getElementById(id);
+const IS_MAC = /Macintosh|Mac OS X/.test(navigator.userAgent);
+if (IS_MAC) document.documentElement.classList.add("is-mac");
 const fmt = (value, digits = 2) =>
   Number.isFinite(value) ? Number(value).toFixed(digits) : "—";
 
@@ -50,7 +52,7 @@ function prepareCanvas(canvas, dprCap = 2) {
     canvas.width = pixelWidth;
     canvas.height = pixelHeight;
   }
-  const ctx = canvas.getContext("2d", { alpha: false });
+  const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   return { ctx, width, height };
 }
@@ -153,11 +155,20 @@ function padded([lo, hi], fraction = 0.025) {
   return [lo - pad, hi + pad];
 }
 
+function compoundKey(name, fallback) {
+  const cleaned = String(name || "")
+    .replace(/;\s*CE\s*[-+]?\d+(?:\.\d+)?(?=;|$)/gi, "")
+    .replace(/\s*;\s*/g, "; ")
+    .trim();
+  return cleaned || fallback;
+}
+
 export function createVisualizer({ invoke, log }) {
   const els = {
     sample: $("viz-sample"),
     reload: $("viz-reload"),
     reset: $("viz-reset"),
+    intensityMode: $("viz-intensity-mode"),
     status: $("viz-status"),
     empty: $("viz-empty"),
     emptyTitle: $("viz-empty-title"),
@@ -196,6 +207,20 @@ export function createVisualizer({ invoke, log }) {
   let spectrumBase = null;
   let spectrumDomain = null;
   let mirrorObserver = null;
+  let intensityMode = "raw";
+  try {
+    intensityMode = localStorage.getItem("mk-viz-intensity") === "sqrt" ? "sqrt" : "raw";
+  } catch (error) {
+    /* storage is optional */
+  }
+  Array.from(els.intensityMode.children).forEach((button) =>
+    button.classList.toggle("is-on", button.dataset.value === intensityMode)
+  );
+
+  const transformedIntensity = (value) =>
+    intensityMode === "sqrt" ? Math.sqrt(Math.max(0, value)) : Math.max(0, value);
+  const detailDpr = () => (IS_MAC ? 1.25 : 1.5);
+  const mirrorDpr = () => (IS_MAC ? 1.15 : 1.35);
 
   function status(text) {
     els.status.textContent = text;
@@ -331,7 +356,7 @@ export function createVisualizer({ invoke, log }) {
 
   function drawMap() {
     if (!overview || !mapDomain || els.workspace.classList.contains("is-hidden")) return;
-    const { ctx, width, height } = prepareCanvas(els.map, 2);
+    const { ctx, width, height } = prepareCanvas(els.map, IS_MAC ? 1.5 : 2);
     if (width < 40 || height < 40) return;
     const p = palette();
     ctx.fillStyle = p.paper;
@@ -378,10 +403,13 @@ export function createVisualizer({ invoke, log }) {
     if (selected) {
       const x = scale.x(selected.rt);
       const y = scale.y(selected.mz);
+      const pointRadius = selected.name ? 3 : 2.4;
       ctx.strokeStyle = p.ink;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(x, y, 8, 0, Math.PI * 2);
+      // With a 2 px stroke, radius + 1 puts the inner edge exactly against
+      // the selected point rather than leaving a halo of empty space.
+      ctx.arc(x, y, pointRadius + 1, 0, Math.PI * 2);
       ctx.stroke();
     }
     mapGrid = { box, scale, cell, cols, rows, heads, next };
@@ -547,7 +575,8 @@ export function createVisualizer({ invoke, log }) {
       });
       if (token !== loadToken) return;
       detail = next;
-      els.xicMeta.textContent = `${next.chromatogram.length} points · ${next.spectra.length} MS/MS${next.spectraTruncated ? " (nearest shown)" : ""}`;
+      detail.fragmentAt = assignFragmentation(next.chromatogram, next.spectra);
+      els.xicMeta.textContent = `${next.chromatogram.length} MS1 scans · ${next.spectra.length} MS/MS events${next.spectraTruncated ? " (nearest shown)" : ""}`;
       currentSpectrum = nearestSpectrum(next.spectra, selected.rt);
       spectrumBase = currentSpectrum ? spectrumExtent(currentSpectrum) : [0, 1];
       spectrumDomain = [...spectrumBase];
@@ -564,7 +593,7 @@ export function createVisualizer({ invoke, log }) {
   }
 
   function drawLoading(canvas, message) {
-    const { ctx, width, height } = prepareCanvas(canvas, 1.5);
+    const { ctx, width, height } = prepareCanvas(canvas, detailDpr());
     const p = palette();
     ctx.fillStyle = p.paper;
     ctx.fillRect(0, 0, width, height);
@@ -582,9 +611,35 @@ export function createVisualizer({ invoke, log }) {
     );
   }
 
+  function assignFragmentation(chromatogram, spectra) {
+    const assigned = new Int32Array(chromatogram.length);
+    assigned.fill(-1);
+    if (!chromatogram.length) return assigned;
+    for (let spectrumIndex = 0; spectrumIndex < spectra.length; spectrumIndex += 1) {
+      const rt = spectra[spectrumIndex].rt;
+      let lo = 0;
+      let hi = chromatogram.length;
+      while (lo < hi) {
+        const middle = (lo + hi) >>> 1;
+        if (chromatogram[middle][0] < rt) lo = middle + 1;
+        else hi = middle;
+      }
+      const right = Math.min(chromatogram.length - 1, lo);
+      const left = Math.max(0, right - 1);
+      const index = Math.abs(chromatogram[left][0] - rt) <= Math.abs(chromatogram[right][0] - rt)
+        ? left
+        : right;
+      const previous = assigned[index];
+      if (previous < 0 || Math.abs(rt - chromatogram[index][0]) < Math.abs(spectra[previous].rt - chromatogram[index][0])) {
+        assigned[index] = spectrumIndex;
+      }
+    }
+    return assigned;
+  }
+
   function drawXic() {
     if (!detail || !selected) return;
-    const { ctx, width, height } = prepareCanvas(els.xic, 1.5);
+    const { ctx, width, height } = prepareCanvas(els.xic, detailDpr());
     const p = palette();
     ctx.fillStyle = p.paper;
     ctx.fillRect(0, 0, width, height);
@@ -609,30 +664,75 @@ export function createVisualizer({ invoke, log }) {
       else ctx.moveTo(x, y);
     });
     ctx.stroke();
+
+    // Every chromatographic scan remains visible as a point. Fragmented scans
+    // are assigned to their nearest MS1 acquisition and drawn as a larger,
+    // coloured point so scan density and DDA coverage are readable together.
+    const fragmentAt = detail.fragmentAt || assignFragmentation(detail.chromatogram, detail.spectra);
+    ctx.fillStyle = p.ink3;
+    ctx.beginPath();
+    detail.chromatogram.forEach((point, index) => {
+      if (fragmentAt[index] >= 0) return;
+      ctx.moveTo(scale.x(point[0]) + 1.8, scale.y(point[1]));
+      ctx.arc(scale.x(point[0]), scale.y(point[1]), 1.8, 0, Math.PI * 2);
+    });
+    ctx.fill();
+    ctx.fillStyle = p.bad;
+    ctx.beginPath();
+    detail.chromatogram.forEach((point, index) => {
+      if (fragmentAt[index] < 0) return;
+      ctx.moveTo(scale.x(point[0]) + 3.2, scale.y(point[1]));
+      ctx.arc(scale.x(point[0]), scale.y(point[1]), 3.2, 0, Math.PI * 2);
+    });
+    ctx.fill();
+
+    ctx.strokeStyle = `${p.bad}88`;
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
     for (const spectrum of detail.spectra) {
-      ctx.strokeStyle = currentSpectrum && spectrum.id === currentSpectrum.id ? p.bad : `${p.bad}88`;
-      ctx.lineWidth = currentSpectrum && spectrum.id === currentSpectrum.id ? 2.5 : 1;
-      ctx.beginPath();
+      if (currentSpectrum && spectrum.id === currentSpectrum.id) continue;
       ctx.moveTo(scale.x(spectrum.rt), box.top);
       ctx.lineTo(scale.x(spectrum.rt), box.top + box.height);
+    }
+    ctx.stroke();
+    if (currentSpectrum) {
+      ctx.strokeStyle = p.bad;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(scale.x(currentSpectrum.rt), box.top);
+      ctx.lineTo(scale.x(currentSpectrum.rt), box.top + box.height);
       ctx.stroke();
     }
-    els.xic._viz = { box, scale };
+    ctx.setLineDash([]);
+    els.xic._viz = { box, scale, xDomain };
   }
 
   els.xic.addEventListener("pointermove", (event) => {
-    if (!detail || !detail.spectra.length || !els.xic._viz) return;
+    if (!detail || !detail.chromatogram.length || !els.xic._viz) return;
     const rect = els.xic.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const spectrum = detail.spectra.reduce((best, item) =>
-      Math.abs(els.xic._viz.scale.x(item.rt) - x) < Math.abs(els.xic._viz.scale.x(best.rt) - x)
-        ? item
-        : best,
-    );
-    if (!currentSpectrum || spectrum.id !== currentSpectrum.id) {
+    const { box, xDomain } = els.xic._viz;
+    const rt = xDomain[0] + ((x - box.left) / box.width) * (xDomain[1] - xDomain[0]);
+    let lo = 0;
+    let hi = detail.chromatogram.length;
+    while (lo < hi) {
+      const middle = (lo + hi) >>> 1;
+      if (detail.chromatogram[middle][0] < rt) lo = middle + 1;
+      else hi = middle;
+    }
+    const right = Math.min(detail.chromatogram.length - 1, lo);
+    const left = Math.max(0, right - 1);
+    const index = Math.abs(detail.chromatogram[left][0] - rt) <= Math.abs(detail.chromatogram[right][0] - rt)
+      ? left
+      : right;
+    const point = detail.chromatogram[index];
+    const spectrumIndex = detail.fragmentAt ? detail.fragmentAt[index] : -1;
+    const spectrum = spectrumIndex >= 0 ? detail.spectra[spectrumIndex] : null;
+    if (spectrum && (!currentSpectrum || spectrum.id !== currentSpectrum.id)) {
       currentSpectrum = spectrum;
-      spectrumBase = spectrumExtent(spectrum);
+      spectrumBase = spectrumExtent(currentSpectrum);
       spectrumDomain = [...spectrumBase];
       drawXic();
       drawSpectrum();
@@ -642,7 +742,7 @@ export function createVisualizer({ invoke, log }) {
       els.xic.parentElement,
       x,
       y,
-      `${fmt(spectrum.precursorMz, 4)} m/z\nRT ${fmt(spectrum.rt, 3)} min · CE ${fmt(spectrum.ce, 1)}`,
+      `MS1 scan ${index + 1}\nRT ${fmt(point[0], 3)} min · ${formatTick(point[1])} intensity${spectrum ? `\nMS/MS acquired · ${fmt(spectrum.precursorMz, 4)} m/z · CE ${fmt(spectrum.ce, 1)}` : "\nNo MS/MS fragmentation"}`,
     );
   });
   els.xic.addEventListener("pointerleave", () => hideTip(els.xicTip));
@@ -659,13 +759,16 @@ export function createVisualizer({ invoke, log }) {
       drawLoading(els.spectrum, "No nearby MS/MS spectrum");
       return;
     }
-    const { ctx, width, height } = prepareCanvas(els.spectrum, 1.5);
+    const { ctx, width, height } = prepareCanvas(els.spectrum, detailDpr());
     const p = palette();
     ctx.fillStyle = p.paper;
     ctx.fillRect(0, 0, width, height);
-    const maxI = Math.max(1, ...currentSpectrum.peaks.map((peak) => peak[1]));
+    const maxI = Math.max(1, ...currentSpectrum.peaks.map((peak) => transformedIntensity(peak[1])));
     const box = { left: 58, top: 19, width: Math.max(1, width - 76), height: Math.max(1, height - 58) };
-    const scale = plotAxes(ctx, box, spectrumDomain, [0, maxI * 1.05], { x: "fragment m/z", y: "intensity" });
+    const scale = plotAxes(ctx, box, spectrumDomain, [0, maxI * 1.05], {
+      x: "fragment m/z",
+      y: intensityMode === "sqrt" ? "√ intensity" : "intensity",
+    });
     ctx.strokeStyle = p.ink;
     ctx.lineWidth = 1.3;
     ctx.beginPath();
@@ -673,7 +776,7 @@ export function createVisualizer({ invoke, log }) {
       const x = scale.x(peak[0]);
       if (x < box.left || x > box.left + box.width) continue;
       ctx.moveTo(x, scale.y(0));
-      ctx.lineTo(x, scale.y(peak[1]));
+      ctx.lineTo(x, scale.y(transformedIntensity(peak[1])));
     }
     ctx.stroke();
     const precursorX = scale.x(currentSpectrum.precursorMz);
@@ -725,7 +828,13 @@ export function createVisualizer({ invoke, log }) {
         distance = next;
       }
     }
-    if (best) showTip(els.spectrumTip, els.spectrum.parentElement, x, y, `${fmt(best[0], 4)} m/z\n${formatTick(best[1])} intensity`);
+    if (best) showTip(
+      els.spectrumTip,
+      els.spectrum.parentElement,
+      x,
+      y,
+      `${fmt(best[0], 4)} m/z\n${formatTick(transformedIntensity(best[1]))} ${intensityMode === "sqrt" ? "√ intensity" : "intensity"}`,
+    );
     else hideTip(els.spectrumTip);
   });
   els.spectrum.addEventListener("pointerup", () => { spectrumDrag = null; });
@@ -750,16 +859,28 @@ export function createVisualizer({ invoke, log }) {
 
   function renderMirrors(mirrors) {
     clearMirrors();
-    els.mirrorCount.textContent = mirrors.length
-      ? `${mirrors.length} match${mirrors.length === 1 ? "" : "es"} · best score first`
-      : "No library matches";
     if (!mirrors.length) {
+      els.mirrorCount.textContent = "No library matches";
       const emptyMessage = document.createElement("p");
       emptyMessage.className = "viz-mirror-empty";
       emptyMessage.textContent = "No ranked library spectrum was recorded for this feature in this sample.";
       els.mirrorList.append(emptyMessage);
       return;
     }
+
+    const groups = [];
+    const byName = new Map();
+    mirrors.forEach((mirror, index) => {
+      const key = compoundKey(mirror.name, `Unlabelled match ${index + 1}`);
+      let group = byName.get(key);
+      if (!group) {
+        group = { name: key, mirrors: [] };
+        byName.set(key, group);
+        groups.push(group);
+      }
+      group.mirrors.push(mirror);
+    });
+    els.mirrorCount.textContent = `${mirrors.length} librar${mirrors.length === 1 ? "y spectrum" : "y spectra"} · ${groups.length} compound${groups.length === 1 ? "" : "s"} · best score first`;
 
     const root = document.querySelector(".stage");
     mirrorObserver = new IntersectionObserver(
@@ -768,7 +889,7 @@ export function createVisualizer({ invoke, log }) {
           const canvas = entry.target;
           if (entry.isIntersecting) {
             canvas.dataset.live = "true";
-            drawMirror(canvas, mirrors[Number(canvas.dataset.index)]);
+            drawMirror(canvas, canvas._mirror);
           } else {
             canvas.dataset.live = "false";
             canvas.width = 1;
@@ -776,32 +897,52 @@ export function createVisualizer({ invoke, log }) {
           }
         }
       },
-      { root, rootMargin: "650px 0px" },
+      { root, rootMargin: `${IS_MAC ? 300 : 650}px 0px` },
     );
 
-    mirrors.forEach((mirror, index) => {
+    groups.forEach((group) => {
+      const mirror = group.mirrors[0];
       const card = document.createElement("article");
       card.className = "viz-mirror-card";
       const head = document.createElement("header");
       head.className = "viz-mirror-head";
       const title = document.createElement("h4");
-      title.textContent = mirror.name;
-      title.title = mirror.name;
+      title.textContent = group.name;
+      title.title = group.name;
       const meta = document.createElement("div");
       meta.className = "viz-mirror-meta mono micro";
       const score = document.createElement("span");
-      score.textContent = `score ${fmt(mirror.score)}`;
       const mass = document.createElement("span");
-      mass.textContent = `${fmt(mirror.libraryMz, 4)} m/z`;
       meta.append(score, mass);
+      if (group.mirrors.length > 1) {
+        const layer = document.createElement("select");
+        layer.className = "viz-layer-select";
+        layer.setAttribute("aria-label", `Library spectrum layer for ${group.name}`);
+        group.mirrors.forEach((item, index) => {
+          const option = document.createElement("option");
+          option.value = String(index);
+          option.textContent = `Layer ${index + 1} · score ${fmt(item.score)} · CE ${fmt(item.ce, 1)}`;
+          layer.append(option);
+        });
+        meta.append(layer);
+      }
       head.append(title, meta);
       const canvas = document.createElement("canvas");
-      canvas.dataset.index = String(index);
-      canvas.setAttribute("aria-label", `Mirror spectrum for ${mirror.name}`);
+      canvas._mirror = mirror;
+      canvas.setAttribute("aria-label", `Layered mirror spectrum for ${group.name}`);
       const tip = document.createElement("div");
       tip.className = "viz-tooltip is-hidden";
       card.style.position = "relative";
-      canvas.addEventListener("pointermove", (event) => mirrorPointer(event, canvas, tip, mirror));
+      const select = meta.querySelector("select");
+      const showLayer = (index) => {
+        canvas._mirror = group.mirrors[index];
+        score.textContent = `score ${fmt(canvas._mirror.score)}`;
+        mass.textContent = `${fmt(canvas._mirror.libraryMz, 4)} m/z`;
+        if (canvas.dataset.live === "true") drawMirror(canvas, canvas._mirror);
+      };
+      if (select) select.addEventListener("change", () => showLayer(Number(select.value)));
+      showLayer(0);
+      canvas.addEventListener("pointermove", (event) => mirrorPointer(event, canvas, tip, canvas._mirror));
       canvas.addEventListener("pointerleave", () => hideTip(tip));
       card.append(head, canvas, tip);
       els.mirrorList.append(card);
@@ -810,7 +951,7 @@ export function createVisualizer({ invoke, log }) {
   }
 
   function drawMirror(canvas, mirror) {
-    const { ctx, width, height } = prepareCanvas(canvas, 1.35);
+    const { ctx, width, height } = prepareCanvas(canvas, mirrorDpr());
     const p = palette();
     ctx.fillStyle = p.paper;
     ctx.fillRect(0, 0, width, height);
@@ -824,8 +965,11 @@ export function createVisualizer({ invoke, log }) {
       1,
     ) * 1.03;
     const x = (value) => box.left + (value / maxMz) * box.width;
-    const expMax = Math.max(1, ...mirror.experimental.map((peak) => peak.intensity));
-    const libMax = Math.max(1, ...mirror.library.map((peak) => peak.intensity));
+    const sharedMax = Math.max(
+      1,
+      ...mirror.experimental.map((peak) => transformedIntensity(peak.intensity)),
+      ...mirror.library.map((peak) => transformedIntensity(peak.intensity)),
+    );
     ctx.strokeStyle = p.rule;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -844,13 +988,13 @@ export function createVisualizer({ invoke, log }) {
       ctx.stroke();
       ctx.fillText(formatTick(value), at, box.top + box.height + 7);
     }
-    const drawSide = (peaks, max, direction, color) => {
+    const drawSide = (peaks, direction, color) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.4;
       ctx.beginPath();
       for (const peak of peaks) {
         const at = x(peak.mz);
-        const end = baseline - direction * (peak.intensity / max) * (box.height / 2 - 8);
+        const end = baseline - direction * (transformedIntensity(peak.intensity) / sharedMax) * (box.height / 2 - 8);
         ctx.moveTo(at, baseline);
         ctx.lineTo(at, end);
       }
@@ -859,14 +1003,14 @@ export function createVisualizer({ invoke, log }) {
       for (const peak of peaks) {
         if (!peak.matched) continue;
         const at = x(peak.mz);
-        const end = baseline - direction * (peak.intensity / max) * (box.height / 2 - 8);
+        const end = baseline - direction * (transformedIntensity(peak.intensity) / sharedMax) * (box.height / 2 - 8);
         ctx.beginPath();
         ctx.arc(at, end, 2.6, 0, Math.PI * 2);
         ctx.fill();
       }
     };
-    drawSide(mirror.experimental, expMax, 1, p.bad);
-    drawSide(mirror.library, libMax, -1, p.accent);
+    drawSide(mirror.experimental, 1, p.bad);
+    drawSide(mirror.library, -1, p.accent);
     ctx.font = `10px ${p.mono}`;
     ctx.textAlign = "left";
     ctx.fillStyle = p.bad;
@@ -874,7 +1018,7 @@ export function createVisualizer({ invoke, log }) {
     ctx.fillStyle = p.accent;
     ctx.textBaseline = "bottom";
     ctx.fillText(`library · ${fmt(mirror.libraryMz, 4)} m/z`, box.left, box.top + box.height);
-    canvas._viz = { box, baseline, x, expMax, libMax };
+    canvas._viz = { box, baseline, x, sharedMax };
   }
 
   function mirrorPointer(event, canvas, tip, mirror) {
@@ -897,7 +1041,13 @@ export function createVisualizer({ invoke, log }) {
       return;
     }
     const side = y < canvas._viz.baseline ? "experimental" : "library";
-    showTip(tip, canvas.parentElement, x, y + canvas.offsetTop, `${side}\n${fmt(best.mz, 4)} m/z · ${formatTick(best.intensity)}${best.matched ? " · matched" : ""}`);
+    showTip(
+      tip,
+      canvas.parentElement,
+      x,
+      y + canvas.offsetTop,
+      `${side}\n${fmt(best.mz, 4)} m/z · ${formatTick(transformedIntensity(best.intensity))} ${intensityMode === "sqrt" ? "√ intensity" : "intensity"}${best.matched ? " · matched" : ""}`,
+    );
   }
 
   els.sample.addEventListener("change", () => {
@@ -906,17 +1056,43 @@ export function createVisualizer({ invoke, log }) {
   });
   els.reload.addEventListener("click", () => loadSession(true));
   els.reset.addEventListener("click", resetMap);
-
-  const resize = new ResizeObserver(() => {
-    requestMapDraw();
-    if (detail) {
-      drawXic();
-      drawSpectrum();
+  els.intensityMode.addEventListener("click", (event) => {
+    const button = event.target.closest("button");
+    if (!button || button.disabled || button.dataset.value === intensityMode) return;
+    intensityMode = button.dataset.value === "sqrt" ? "sqrt" : "raw";
+    Array.from(els.intensityMode.children).forEach((item) =>
+      item.classList.toggle("is-on", item === button)
+    );
+    try {
+      localStorage.setItem("mk-viz-intensity", intensityMode);
+    } catch (error) {
+      /* storage is optional */
     }
-    els.mirrorList.querySelectorAll('canvas[data-live="true"]').forEach((canvas) => {
-      const index = Number(canvas.dataset.index);
-      if (detail && detail.mirrors[index]) drawMirror(canvas, detail.mirrors[index]);
+    if (detail) {
+      drawSpectrum();
+      els.mirrorList.querySelectorAll('canvas[data-live="true"]').forEach((canvas) =>
+        drawMirror(canvas, canvas._mirror)
+      );
+    }
+  });
+
+  let detailFrame = 0;
+  const requestDetailDraw = () => {
+    if (detailFrame) return;
+    detailFrame = requestAnimationFrame(() => {
+      detailFrame = 0;
+      requestMapDraw();
+      if (detail) {
+        drawXic();
+        drawSpectrum();
+      }
+      els.mirrorList.querySelectorAll('canvas[data-live="true"]').forEach((canvas) => {
+        if (canvas._mirror) drawMirror(canvas, canvas._mirror);
+      });
     });
+  };
+  const resize = new ResizeObserver(() => {
+    requestDetailDraw();
   });
   [els.map, els.xic, els.spectrum].forEach((canvas) => resize.observe(canvas));
 
@@ -926,7 +1102,7 @@ export function createVisualizer({ invoke, log }) {
       drawXic();
       drawSpectrum();
       els.mirrorList.querySelectorAll('canvas[data-live="true"]').forEach((canvas) => {
-        drawMirror(canvas, detail.mirrors[Number(canvas.dataset.index)]);
+        if (canvas._mirror) drawMirror(canvas, canvas._mirror);
       });
     }
   };

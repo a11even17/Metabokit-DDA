@@ -4,6 +4,7 @@
 //! frontend as commands, forwards engine progress as window events, and keeps
 //! one run at a time alive on a dedicated thread so the UI never blocks.
 
+pub mod postprocess;
 pub mod visualizer;
 
 use std::path::PathBuf;
@@ -293,6 +294,9 @@ pub fn run() {
             visualizer::visualizer_open,
             visualizer::visualizer_overview,
             visualizer::visualizer_feature,
+            postprocess::postprocess_open,
+            postprocess::postprocess_preview,
+            postprocess::postprocess_export,
         ])
         .run(tauri::generate_context!())
         .expect("failed to start MetaboKit DDA");

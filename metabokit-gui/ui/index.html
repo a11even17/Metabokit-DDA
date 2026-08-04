@@ -31,6 +31,11 @@
               <span class="mono ord">03</span><span class="nav-label">Visualizer</span>
             </button>
           </li>
+          <li>
+            <button class="nav-item" data-view="postprocess" role="tab">
+              <span class="mono ord">04</span><span class="nav-label">Post-process (BETA)</span>
+            </button>
+          </li>
         </ul>
 
         <div class="rail-foot">
@@ -39,7 +44,7 @@
           <button class="btn btn-primary" id="btn-run" disabled>Run analysis</button>
           <button class="btn btn-quiet is-hidden" id="btn-cancel">Stop</button>
           <div class="rail-links">
-            <button class="linky mono micro" data-view="advanced">Advanced</button>
+            <button class="linky mono micro" id="theme-toggle" type="button" aria-label="Switch to night mode">Night mode</button>
             <button class="linky mono micro" data-view="about">About</button>
           </div>
         </div>
@@ -157,6 +162,14 @@
             </header>
             <ol class="log" id="log"></ol>
           </section>
+
+          <details class="run-parameters" id="run-parameters">
+            <summary>
+              <span><strong>Analysis parameters</strong><small>Auto-filled · review before running</small></span>
+              <span class="mono micro muted">Show settings</span>
+            </summary>
+            <div id="run-advanced-host"></div>
+          </details>
         </section>
 
         <!-- --------------------- 03 visualizer -------------------- -->
@@ -175,6 +188,10 @@
               <select id="viz-sample" disabled><option>No cached samples</option></select>
             </label>
             <div class="btn-set">
+              <div class="seg small" id="viz-intensity-mode" aria-label="Spectrum intensity scale">
+                <button data-value="raw" class="is-on">Raw intensity</button>
+                <button data-value="sqrt">Square root</button>
+              </div>
               <button class="btn" id="viz-reload" disabled>Reload data</button>
               <button class="btn btn-quiet" id="viz-reset" disabled>Reset map</button>
             </div>
@@ -226,7 +243,7 @@
                     <canvas id="viz-xic" aria-label="Extracted ion chromatogram"></canvas>
                     <div class="viz-tooltip is-hidden" id="viz-xic-tip"></div>
                   </div>
-                  <p class="mono micro muted viz-help">Hover an acquisition marker to inspect its MS/MS spectrum</p>
+                  <p class="mono micro muted viz-help"><span class="viz-dot-key ms1"></span>MS1 scan <span class="viz-dot-key ms2"></span>nearest MS1 scan with fragmentation <span class="viz-line-key"></span>exact MS/MS time · hover a dot to inspect it</p>
                 </section>
 
                 <section class="viz-panel">
@@ -253,12 +270,70 @@
           </div>
         </section>
 
+        <!-- -------------------- 04 post-process ------------------ -->
+        <section class="view" id="view-postprocess">
+          <header class="sec-head">
+            <p class="mono kicker">04 / Post-process (BETA)</p>
+            <div class="sec-body">
+              <h2>Clean the result table</h2>
+              <p class="lede">Apply experiment-aware quality-control filters without changing the original report, preview what remains, then export a clean CSV.</p>
+            </div>
+          </header>
+
+          <div class="post-empty" id="post-empty">
+            <p>No completed reports found</p>
+            <span>Choose a processed dataset first.</span>
+          </div>
+
+          <div class="post-workspace is-hidden" id="post-workspace">
+            <div class="post-toolbar">
+              <label>
+                <span class="mono micro muted">Source report</span>
+                <select id="post-report"></select>
+              </label>
+              <p class="mono micro muted" id="post-status">Ready to preview.</p>
+            </div>
+
+            <section class="post-filters" aria-labelledby="post-filter-title">
+              <header>
+                <div><p class="mono micro muted">Quality control</p><h3 id="post-filter-title">Filtering criteria</h3></div>
+                <button class="btn btn-quiet" id="post-reset" type="button">Reset filters</button>
+              </header>
+              <div class="post-filter-grid">
+                <label><span>Minimum detected samples</span><span class="post-input"><input type="number" id="post-detected" min="0" max="100" step="1" value="0" /><i>%</i></span></label>
+                <label><span>Minimum median peak shape</span><input type="number" id="post-shape" min="0" max="1" step="0.01" value="0" /></label>
+                <label><span>Minimum median MS/MS score</span><input type="number" id="post-score" min="0" max="1" step="0.01" value="0" /></label>
+                <label><span>Minimum median signal/noise</span><input type="number" id="post-sn" min="0" step="0.1" value="0" /></label>
+                <label><span>Minimum matching fragments</span><input type="number" id="post-peaks" min="0" step="1" value="0" /></label>
+                <label><span>Maximum area CV</span><span class="post-input"><input type="number" id="post-cv" min="0" step="1" placeholder="Off" /><i>%</i></span></label>
+              </div>
+              <div class="post-checks">
+                <label class="check"><input type="checkbox" id="post-identified" /><span>Identified compounds only</span></label>
+                <label class="check"><input type="checkbox" id="post-msms" /><span>MS/MS confidence only</span></label>
+                <label class="check"><input type="checkbox" id="post-isf" checked /><span>Remove in-source fragments</span></label>
+              </div>
+              <div class="btn-set post-actions">
+                <button class="btn btn-primary" id="post-preview" type="button">Preview filters</button>
+                <button class="btn" id="post-export" type="button" disabled>Export cleaned CSV…</button>
+              </div>
+            </section>
+
+            <dl class="post-stats" id="post-stats"></dl>
+            <div class="post-table-wrap is-hidden" id="post-table-wrap">
+              <table class="post-table">
+                <thead><tr><th>Group</th><th>Compound</th><th>Adduct</th><th>m/z</th><th>Detected</th><th>Shape</th><th>Score</th><th>S/N</th><th>CV</th></tr></thead>
+                <tbody id="post-rows"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
         <!-- ------------------------ advanced ---------------------- -->
         <section class="view" id="view-advanced">
           <header class="sec-head">
-            <p class="mono kicker">Advanced</p>
+            <p class="mono kicker">Review before running</p>
             <div class="sec-body">
-              <h2>Overrides</h2>
+              <h2>Analysis parameters</h2>
               <p class="lede">
                 Every value here is inferred from the dataset or left at a
                 sensible default. Change them only when a run needs it —

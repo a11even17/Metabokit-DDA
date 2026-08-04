@@ -34,10 +34,7 @@ pub fn align(mut annotations: Vec<Ann>, params: &Params) -> Aligned {
         a.premz
             .partial_cmp(&b.premz)
             .unwrap_or(std::cmp::Ordering::Equal)
-            .then_with(|| {
-                a.rt.partial_cmp(&b.rt)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
+            .then_with(|| a.rt.partial_cmp(&b.rt).unwrap_or(std::cmp::Ordering::Equal))
             .then_with(|| a.file.cmp(&b.file))
     });
 
@@ -169,9 +166,10 @@ fn associate_isf(annotations: &[Ann], params: &Params) -> Vec<(u32, u32)> {
                 if cand.rt != rel.rt || cand.file != ann.file {
                     continue;
                 }
-                let confident = cand.hits.iter().any(|h| {
-                    h.score > params.ms2_score && h.matched_peaks >= params.min_peaks
-                });
+                let confident = cand
+                    .hits
+                    .iter()
+                    .any(|h| h.score > params.ms2_score && h.matched_peaks >= params.min_peaks);
                 if confident {
                     out.push((i as u32, j as u32));
                     break;
@@ -212,14 +210,12 @@ fn group_isf(annotations: &[Ann], pairs: &[(u32, u32)], rt_shift: f32) -> Vec<Ve
         let lo = frag_mz - 0.01;
         let hi = frag_mz + 0.01;
         let from = pairs[..pos].partition_point(|p| annotations[p.0 as usize].premz < lo);
-        let to = pos
-            + 1
-            + pairs[pos + 1..].partition_point(|p| annotations[p.0 as usize].premz < hi);
+        let to =
+            pos + 1 + pairs[pos + 1..].partition_point(|p| annotations[p.0 as usize].premz < hi);
 
         // Only pairs whose parent is the *same* compound count towards a group.
-        let same_parent = |k: usize| {
-            (annotations[pairs[k].1 as usize].premz - parent_mz).abs() < 0.01
-        };
+        let same_parent =
+            |k: usize| (annotations[pairs[k].1 as usize].premz - parent_mz).abs() < 0.01;
 
         loop {
             let mut best: Option<(usize, f32)> = None;
@@ -311,7 +307,10 @@ pub fn min_median_max(values: &mut [f32]) -> [f32; 3] {
     });
     let lower = &values[..mid.max(1)];
     let min = lower.iter().copied().fold(f32::INFINITY, f32::min);
-    let max = values[mid..].iter().copied().fold(f32::NEG_INFINITY, f32::max);
+    let max = values[mid..]
+        .iter()
+        .copied()
+        .fold(f32::NEG_INFINITY, f32::max);
     let med = if values.len() % 2 == 1 {
         values[mid]
     } else {

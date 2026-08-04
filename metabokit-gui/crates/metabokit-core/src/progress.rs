@@ -60,14 +60,30 @@ impl Stage {
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum Event {
     /// A new phase began.
-    Stage { stage: Stage, label: String },
+    Stage {
+        stage: Stage,
+        label: String,
+    },
     /// Fractional progress within the current phase, 0.0..=1.0.
-    Progress { done: u64, total: u64 },
+    Progress {
+        done: u64,
+        total: u64,
+    },
     /// A named per-sample sub-task started.
-    Sample { name: String, index: usize, total: usize },
-    Log { level: Level, message: String },
+    Sample {
+        name: String,
+        index: usize,
+        total: usize,
+    },
+    Log {
+        level: Level,
+        message: String,
+    },
     /// A key/value fact worth surfacing (counts, timings, peak RSS).
-    Metric { key: String, value: String },
+    Metric {
+        key: String,
+        value: String,
+    },
 }
 
 /// Where the engine sends events. Implemented by the Tauri layer; `Silent` is
